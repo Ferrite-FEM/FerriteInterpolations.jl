@@ -1,3 +1,8 @@
+using FerriteInterpolations
+using Ferrite
+using Test
+include("test_utils.jl")
+
 @testset "Bernstein" begin
     line_ips = (Bernstein{RefLine, 1}(), Bernstein{RefLine, 2}(), Bernstein{RefLine, 3}())
     tri_ips = (Bernstein{RefTriangle, 1}(), Bernstein{RefTriangle, 2}(), Bernstein{RefTriangle, 3}())

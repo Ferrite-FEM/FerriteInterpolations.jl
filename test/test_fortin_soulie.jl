@@ -1,3 +1,8 @@
+using FerriteInterpolations
+using Ferrite
+using Test
+include("test_utils.jl")
+
 @testset "FortinSoulie" begin
     ip = FortinSoulie{RefTriangle, 2}()
 
