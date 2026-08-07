@@ -1,2 +1,4 @@
 Manifest.toml
 PLAN.md
+test/.conda_env/
+test/.CondaPkg/

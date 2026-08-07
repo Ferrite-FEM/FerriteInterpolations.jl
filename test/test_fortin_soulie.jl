@@ -13,23 +13,11 @@ include("test_utils.jl")
     test_type_genericity(ip)
     test_kronecker_delta(ip) # all DOFs are point evaluations
 
-    # Reference tabulation generated with symfem 2025.8.0
-    # (dev/generate_fortin_soulie_table.py). Points in Ferrite reference
-    # coordinates (identical to symfem's for the triangle) and values in
-    # Ferrite DOF order; the generator assigns symfem DOFs to Ferrite entities
-    # geometrically by their evaluation points (symfem DOF order [0, 1, 3, 2, 4, 5]).
-    table = [
-        (Vec((0.3, 0.2)), [-0.15, 0.06, -0.18, 0.27, 0.28, 0.72]),
-        (Vec((0.1, 0.6)), [-0.075, 0.12, 0.6, -0.015, -0.08, 0.45]),
-        (Vec((0.25, 0.25)), [-0.15234375, 0.046875, -0.140625, 0.31640625, 0.15625, 0.7734375]),
-        (Vec((0.05, 0.9)), [-0.286875, 1.1475, 1.1475, -0.286875, 0.595, -1.31625]),
-    ]
-    @testset "symfem reference values" begin
-        for (ξ, expected) in table
-            vals = [Ferrite.reference_shape_value(ip, ξ, i) for i in 1:6]
-            @test vals ≈ expected atol = 1.0e-13
-        end
-    end
+    # Live symfem cross-check. The permutation (Ferrite DOF -> 0-based symfem
+    # DOF) was derived geometrically from the DOF evaluation points: symfem
+    # DOFs 2 and 3 sit at (0, 1/3) and (0, 2/3) on the Ferrite edge (2, 3),
+    # which runs in the opposite direction, hence the swap.
+    test_symfem_reference(ip, "Fortin-Soulie", 2, [0, 1, 3, 2, 4, 5])
 
     # (ii) Integration tests: nodal interpolation of a full quadratic is exact
     # on an affine cell.

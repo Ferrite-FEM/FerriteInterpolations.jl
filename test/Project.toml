@@ -2,7 +2,9 @@
 Ferrite = "c061ca5d-56c9-439f-9c0e-210fe06d3992"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 ParallelTestRunner = "d3525ed8-44d0-4b2c-a655-542cee43accc"
+PythonCall = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [compat]
 ParallelTestRunner = "2.6"
+PythonCall = "0.9"

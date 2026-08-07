@@ -4,10 +4,13 @@
 using Ferrite
 using Ferrite: getrefshape, getnbasefunctions, reference_shape_value
 using LinearAlgebra: norm
+using PythonCall
 using Test
 
 # Ferrite's generic interpolation property checker (test_interpolation_properties).
 include(joinpath(pkgdir(Ferrite), "test", "interpolation_test_utils.jl"))
+
+const symfem = pyimport("symfem")
 
 # Sample a (not necessarily uniformly distributed) random point strictly inside
 # the reference cell.
@@ -77,6 +80,54 @@ function test_polynomial_reproduction(ip, degree::Int; space::Symbol)
             b = [prod(ξ .^ e) for ξ in points]
             c = A \ b
             @test norm(A * c - b) < 1.0e-10 * max(1, norm(b))
+        end
+    end
+end
+
+# --- symfem cross-check (via PythonCall; test-only dependency) ---------------
+
+# DefElement/symfem cell name for a Ferrite reference shape.
+symfem_cellname(::Type{RefLine}) = "interval"
+symfem_cellname(::Type{RefTriangle}) = "triangle"
+symfem_cellname(::Type{RefQuadrilateral}) = "quadrilateral"
+symfem_cellname(::Type{RefTetrahedron}) = "tetrahedron"
+symfem_cellname(::Type{RefHexahedron}) = "hexahedron"
+symfem_cellname(::Type{RefPrism}) = "prism"
+symfem_cellname(::Type{RefPyramid}) = "pyramid"
+
+# Map a point from the Ferrite reference cell to the symfem/DefElement one:
+# hypercubes are [-1, 1]^d in Ferrite but [0, 1]^d in symfem; the remaining
+# cells have identical coordinates (up to entity numbering, which the
+# permutation handles).
+symfem_coords(::Type{<:Ferrite.RefHypercube}, ξ::Vec) = (ξ .+ 1) ./ 2
+symfem_coords(::Type{<:Ferrite.AbstractRefShape}, ξ::Vec) = ξ
+
+"""
+    test_symfem_reference(ip, family, degree, perm; npoints = 10)
+
+Compare `reference_shape_value` of `ip` against the symfem element
+`create_element(cell, family, degree)` at `npoints` random reference points.
+`perm` maps Ferrite DOF `i` to the 0-based symfem DOF `perm[i]`; it accounts
+for the differing entity numbering (and must be derived per element, e.g.
+geometrically from the DOF points -- symfem's `entity_dofs` entity numbering
+is not consistent across element families).
+"""
+function test_symfem_reference(ip, family::String, degree::Int, perm::Vector{Int}; npoints = 10)
+    @testset "symfem cross-check: $ip" begin
+        shape = getrefshape(ip)
+        N = getnbasefunctions(ip)
+        el = symfem.create_element(symfem_cellname(shape), family, degree)
+        @test pyconvert(Int, el.space_dim) == N
+        @test sort(perm) == 0:(N - 1)
+        basis = el.get_basis_functions()
+        x = symfem.symbols.x
+        for _ in 1:npoints
+            ξ = sample_reference_point(shape)
+            sp = pytuple(Tuple(symfem_coords(shape, ξ)))
+            for i in 1:N
+                expected = pyconvert(Float64, pybuiltins.float(basis[perm[i]].subs(x, sp).as_sympy()))
+                @test reference_shape_value(ip, ξ, i) ≈ expected atol = 1.0e-12
+            end
         end
     end
 end

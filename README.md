@@ -38,8 +38,10 @@ julia --project=. -e 'using Pkg; Pkg.test()'
 - Ferrite's interpolation interface is unexported and documented as not fully
   stable; this package implements `Ferrite.`-qualified internal methods and
   pins `Ferrite = "1.6"` in `[compat]` as a guard.
-- The Julia test suite is fully self-contained. [symfem](https://github.com/mscroggs/symfem)
-  is used at development time to generate reference tabulation tables that are
-  hard-coded into the test files; it is never a test dependency. Note that
+- The test suite cross-checks every basis against
+  [symfem](https://github.com/mscroggs/symfem) (DefElement's reference
+  implementation), imported live via PythonCall — a test-only dependency;
+  `test/CondaPkg.toml` provisions Python and symfem automatically. Note that
   symfem/DefElement and Ferrite differ in reference cell coordinates and in
-  entity numbering/ordering — every ported table documents the mapping used.
+  entity numbering/ordering — `test_symfem_reference` maps the coordinates,
+  and each element's test file documents its DOF permutation.
