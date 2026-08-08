@@ -45,6 +45,8 @@ include("tnt_curl.jl")
 export TNTCurl
 include("taylor.jl")
 export Taylor, TaylorMapping
+include("transition.jl")
+export Transition
 
 # Blocked elements: documentation stubs describing required upstream Ferrite
 # changes (see each file). Included but not exported.
