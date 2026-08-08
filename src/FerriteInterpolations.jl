@@ -54,5 +54,6 @@ include("mardal_tai_winther.jl")
 include("huang_zhang.jl")
 include("hermite.jl")
 include("argyris.jl")
+include("bell.jl")
 
 end # module FerriteInterpolations
