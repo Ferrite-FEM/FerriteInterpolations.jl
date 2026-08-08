@@ -39,6 +39,8 @@ include("trimmed_serendipity_div.jl")
 export TrimmedSerendipityDiv
 include("trimmed_serendipity_curl.jl")
 export TrimmedSerendipityCurl
+include("tnt_div.jl")
+export TNTDiv
 
 # Blocked elements: documentation stubs describing required upstream Ferrite
 # changes (see each file). Included but not exported.
