@@ -71,5 +71,6 @@ include("arnold_winther.jl")
 include("hellan_herrmann_johnson.jl")
 include("gopalakrishnan_lederer_schoberl.jl")
 include("arnold_boffi_falk.jl")
+include("brezzi_douglas_duran_fortin.jl")
 
 end # module FerriteInterpolations
