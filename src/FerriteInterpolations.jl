@@ -17,6 +17,8 @@ include("crouzeix_falk.jl")
 export CrouzeixFalk
 include("conforming_crouzeix_raviart.jl")
 export ConformingCrouzeixRaviart
+include("bubble.jl")
+export Bubble
 
 # Blocked elements: documentation stubs describing required upstream Ferrite
 # changes (see each file). Included but not exported.
