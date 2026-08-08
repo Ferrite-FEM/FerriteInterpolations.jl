@@ -24,19 +24,19 @@ jobs:
         os:
           - ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: julia-actions/setup-julia@v2
+      - uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3.0.2
         with:
           version: ${{ matrix.version }}
-      - uses: julia-actions/cache@v2
+      - uses: julia-actions/cache@b7788abd52452d5bc033d69796e110d9906af4ab # v3.2.0
       # The test suite provisions Python + symfem through CondaPkg into
       # test/.conda_env (see test/runtests.jl); cache it on the CondaPkg.toml
       # contents to avoid re-downloading the environment every run.
-      - uses: actions/cache@v4
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: test/.conda_env
           key: conda-${{ runner.os }}-${{ hashFiles('test/CondaPkg.toml') }}
-      - uses: julia-actions/julia-buildpkg@v1
-      - uses: julia-actions/julia-runtest@v1
+      - uses: julia-actions/julia-buildpkg@e3eb439fad4f9aba7da2667e7510e4a46ebc46e1 # v1.7.0
+      - uses: julia-actions/julia-runtest@6e050c8013b833b1195105ff2fce9cd802f53271 # v1.12.0
