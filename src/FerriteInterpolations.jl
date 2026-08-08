@@ -31,6 +31,8 @@ include("radau.jl")
 export Radau
 include("bdm.jl")
 export BDM
+include("nedelec2.jl")
+export NedelecSecondKind
 
 # Blocked elements: documentation stubs describing required upstream Ferrite
 # changes (see each file). Included but not exported.
