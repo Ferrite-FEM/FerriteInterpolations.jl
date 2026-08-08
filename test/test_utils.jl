@@ -112,7 +112,7 @@ for the differing entity numbering (and must be derived per element, e.g.
 geometrically from the DOF points -- symfem's `entity_dofs` entity numbering
 is not consistent across element families).
 """
-function test_symfem_reference(ip, family::String, degree::Int, perm::Vector{Int}; npoints = 10, kwargs...)
+function test_symfem_reference(ip, family::String, degree::Int, perm::Vector{Int}; npoints = 10, scales = nothing, kwargs...)
     @testset "symfem cross-check: $ip" begin
         shape = getrefshape(ip)
         N = getnbasefunctions(ip)
@@ -126,6 +126,7 @@ function test_symfem_reference(ip, family::String, degree::Int, perm::Vector{Int
             sp = pytuple(Tuple(symfem_coords(shape, ξ)))
             for i in 1:N
                 expected = pyconvert(Float64, pybuiltins.float(basis[perm[i]].subs(x, sp).as_sympy()))
+                scales !== nothing && (expected *= scales[i])
                 @test reference_shape_value(ip, ξ, i) ≈ expected atol = 1.0e-12
             end
         end
