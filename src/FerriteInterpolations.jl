@@ -73,5 +73,6 @@ include("gopalakrishnan_lederer_schoberl.jl")
 include("arnold_boffi_falk.jl")
 include("brezzi_douglas_duran_fortin.jl")
 include("direct_serendipity.jl")
+include("tnt_scalar.jl")
 
 end # module FerriteInterpolations
