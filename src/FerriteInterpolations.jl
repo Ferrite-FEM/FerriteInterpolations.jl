@@ -13,6 +13,8 @@ include("bernstein.jl")
 export Bernstein
 include("fortin_soulie.jl")
 export FortinSoulie
+include("crouzeix_falk.jl")
+export CrouzeixFalk
 
 # Blocked elements: documentation stubs describing required upstream Ferrite
 # changes (see each file). Included but not exported.
