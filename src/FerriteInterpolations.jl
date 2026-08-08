@@ -60,5 +60,6 @@ include("morley_wang_xu.jl")
 include("wu_xu.jl")
 include("bogner_fox_schmitt.jl")
 include("bernardi_raugel.jl")
+include("alfeld_sorokina.jl")
 
 end # module FerriteInterpolations
