@@ -21,6 +21,8 @@ include("bubble.jl")
 export Bubble
 include("dpc.jl")
 export DPC
+include("enriched_galerkin.jl")
+export EnrichedGalerkin
 
 # Blocked elements: documentation stubs describing required upstream Ferrite
 # changes (see each file). Included but not exported.
