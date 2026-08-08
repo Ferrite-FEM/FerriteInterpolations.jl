@@ -15,6 +15,8 @@ include("fortin_soulie.jl")
 export FortinSoulie
 include("crouzeix_falk.jl")
 export CrouzeixFalk
+include("conforming_crouzeix_raviart.jl")
+export ConformingCrouzeixRaviart
 
 # Blocked elements: documentation stubs describing required upstream Ferrite
 # changes (see each file). Included but not exported.
