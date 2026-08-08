@@ -209,6 +209,69 @@ function test_hdiv_two_cell(ip, grid, facet1::Int, facet2::Int, nshared::Int; ta
     end
 end
 
+# Two-cell DofHandler + tangential-continuity test for H(curl) elements,
+# mirroring `test_hdiv_two_cell`.
+function test_hcurl_two_cell(ip, grid, facet1::Int, facet2::Int, nshared::Int)
+    @testset "two-cell H(curl): $ip" begin
+        dh = DofHandler(grid)
+        add!(dh, :u, ip)
+        close!(dh)
+        N = getnbasefunctions(ip)
+        @test ndofs(dh) == 2N - nshared
+        @test length(intersect(celldofs(dh, 1), celldofs(dh, 2))) == nshared
+        u = rand(ndofs(dh))
+        shape = getrefshape(ip)
+        fqr = FacetQuadratureRule{shape}(4)
+        geo = Lagrange{shape, 1}()
+        fv1 = FacetValues(fqr, ip, geo)
+        fv2 = FacetValues(fqr, ip, geo)
+        coords1 = getcoordinates(grid, 1)
+        coords2 = getcoordinates(grid, 2)
+        reinit!(fv1, getcells(grid, 1), coords1, facet1)
+        reinit!(fv2, getcells(grid, 2), coords2, facet2)
+        u1 = u[celldofs(dh, 1)]
+        u2 = u[celldofs(dh, 2)]
+        for qp1 in 1:getnquadpoints(fv1)
+            x1 = spatial_coordinate(fv1, qp1, coords1)
+            qp2 = findfirst(qp -> norm(spatial_coordinate(fv2, qp, coords2) - x1) < 1.0e-12, 1:getnquadpoints(fv2))
+            @test qp2 !== nothing
+            n1 = getnormal(fv1, qp1)
+            t = Vec(-n1[2], n1[1])
+            v1 = function_value(fv1, qp1, u1)
+            v2 = function_value(fv2, qp2, u2)
+            @test v1 ⋅ t ≈ v2 ⋅ t rtol = 1.0e-10 atol = 1.0e-12
+        end
+    end
+end
+
+# Curl/Stokes theorem per basis function on a single cell: int curl(N_i) dA
+# equals the counterclockwise circulation (2D).
+function test_curl_theorem(ip, cell, coords)
+    @testset "curl theorem: $ip" begin
+        shape = getrefshape(ip)
+        geo = Lagrange{shape, 1}()
+        cv = CellValues(QuadratureRule{shape}(4), ip, geo)
+        reinit!(cv, cell, coords)
+        fv = FacetValues(FacetQuadratureRule{shape}(4), ip, geo)
+        for i in 1:getnbasefunctions(ip)
+            curlint = sum(
+                (g = shape_gradient(cv, qp, i); (g[2, 1] - g[1, 2]) * getdetJdV(cv, qp))
+                    for qp in 1:getnquadpoints(cv)
+            )
+            circ = 0.0
+            for facet in 1:Ferrite.nfacets(ip)
+                reinit!(fv, cell, coords, facet)
+                for qp in 1:getnquadpoints(fv)
+                    n = getnormal(fv, qp)
+                    t = Vec(-n[2], n[1])
+                    circ += (shape_value(fv, qp, i) ⋅ t) * getdetJdV(fv, qp)
+                end
+            end
+            @test curlint ≈ circ atol = 1.0e-11
+        end
+    end
+end
+
 # Divergence theorem per basis function on a single cell: int div(N_i) dV
 # equals the total boundary flux (checks the contravariant Piola mapping of
 # values and gradients consistently).

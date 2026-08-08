@@ -35,6 +35,8 @@ include("nedelec2.jl")
 export NedelecSecondKind
 include("bdfm.jl")
 export BDFM
+include("trimmed_serendipity_div.jl")
+export TrimmedSerendipityDiv
 
 # Blocked elements: documentation stubs describing required upstream Ferrite
 # changes (see each file). Included but not exported.
