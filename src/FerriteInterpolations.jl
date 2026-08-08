@@ -52,5 +52,6 @@ export Transition
 # changes (see each file). Included but not exported.
 include("mardal_tai_winther.jl")
 include("huang_zhang.jl")
+include("hermite.jl")
 
 end # module FerriteInterpolations
