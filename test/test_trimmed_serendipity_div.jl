@@ -16,7 +16,7 @@ include("test_utils.jl")
     # source file).
     test_symfem_reference_vector(
         ip, "TSdiv", 1,
-        [(-1//2, 0), (-1//2, 1), (-1//2, 4), (-1//2, 5), (1//2, 7), (1//2, 6), (1//2, 3), (1//2, 2), (1//2, 8), (1//2, 9)],
+        [(-1 // 2, 0), (-1 // 2, 1), (-1 // 2, 4), (-1 // 2, 5), (1 // 2, 7), (1 // 2, 6), (1 // 2, 3), (1 // 2, 2), (1 // 2, 8), (1 // 2, 9)],
     )
 
     # (ii) Integration tests on a two-cell quadrilateral mesh whose shared

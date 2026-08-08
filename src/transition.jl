@@ -141,4 +141,3 @@ function Ferrite.reference_shape_value(ip::Transition{RefTriangle, 2, (2, 2, 2)}
     i == 6 && return -4 * x^2 - 4 * x * y + 4 * x
     return throw_out_of_range(ip, i)
 end
-

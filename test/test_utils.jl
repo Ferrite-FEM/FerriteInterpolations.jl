@@ -35,7 +35,7 @@ end
 
 # Σᵢ Nᵢ(ξ) == 1 at random reference points (any partition-of-unity element).
 function test_partition_of_unity(ip; npoints = 20)
-    @testset "partition of unity: $ip" begin
+    return @testset "partition of unity: $ip" begin
         for _ in 1:npoints
             ξ = sample_reference_point(getrefshape(ip))
             s = sum(i -> reference_shape_value(ip, ξ, i), 1:getnbasefunctions(ip))
@@ -46,7 +46,7 @@ end
 
 # Nᵢ(ξⱼ) == δᵢⱼ at reference_coordinates (nodal elements only).
 function test_kronecker_delta(ip)
-    @testset "Kronecker delta: $ip" begin
+    return @testset "Kronecker delta: $ip" begin
         coords = Ferrite.reference_coordinates(ip)
         N = getnbasefunctions(ip)
         @test length(coords) == N
@@ -70,7 +70,7 @@ end
 # functions: least-squares fit at random points, residual ≈ 0. Catches basis
 # transcription typos without needing the dual basis.
 function test_polynomial_reproduction(ip, degree::Int; space::Symbol)
-    @testset "$space$degree ⊆ span: $ip" begin
+    return @testset "$space$degree ⊆ span: $ip" begin
         shape = getrefshape(ip)
         N = getnbasefunctions(ip)
         npts = 3 * N + 10
@@ -113,7 +113,7 @@ geometrically from the DOF points -- symfem's `entity_dofs` entity numbering
 is not consistent across element families).
 """
 function test_symfem_reference(ip, family::String, degree::Int, perm::Vector{Int}; npoints = 10, scales = nothing, kwargs...)
-    @testset "symfem cross-check: $ip" begin
+    return @testset "symfem cross-check: $ip" begin
         shape = getrefshape(ip)
         N = getnbasefunctions(ip)
         el = symfem.create_element(symfem_cellname(shape), family, degree; kwargs...)
@@ -142,7 +142,7 @@ DOF `j` (H(div)/H(curl) conventions differ by edge order, intra-edge weight
 order and normal/tangent sign, all absorbed in the signed permutation).
 """
 function test_symfem_reference_vector(ip, family::String, degree::Int, sperm::Vector{<:Tuple{Real, Int}}; npoints = 10, kwargs...)
-    @testset "symfem cross-check: $ip" begin
+    return @testset "symfem cross-check: $ip" begin
         shape = getrefshape(ip)
         dim = Ferrite.getrefdim(ip)
         N = getnbasefunctions(ip)
@@ -173,7 +173,7 @@ end
 # points on the shared edge; if `tangential_moment`, the zeroth tangential
 # moment must also agree (MTW/HZ-type elements).
 function test_hdiv_two_cell(ip, grid, facet1::Int, facet2::Int, nshared::Int; tangential_moment = false)
-    @testset "two-cell H(div): $ip" begin
+    return @testset "two-cell H(div): $ip" begin
         dh = DofHandler(grid)
         add!(dh, :u, ip)
         close!(dh)
@@ -213,7 +213,7 @@ end
 # Two-cell DofHandler + tangential-continuity test for H(curl) elements,
 # mirroring `test_hdiv_two_cell`.
 function test_hcurl_two_cell(ip, grid, facet1::Int, facet2::Int, nshared::Int)
-    @testset "two-cell H(curl): $ip" begin
+    return @testset "two-cell H(curl): $ip" begin
         dh = DofHandler(grid)
         add!(dh, :u, ip)
         close!(dh)
@@ -248,7 +248,7 @@ end
 # Curl/Stokes theorem per basis function on a single cell: int curl(N_i) dA
 # equals the counterclockwise circulation (2D).
 function test_curl_theorem(ip, cell, coords)
-    @testset "curl theorem: $ip" begin
+    return @testset "curl theorem: $ip" begin
         shape = getrefshape(ip)
         geo = Lagrange{shape, 1}()
         cv = CellValues(QuadratureRule{shape}(4), ip, geo)
@@ -277,7 +277,7 @@ end
 # equals the total boundary flux (checks the contravariant Piola mapping of
 # values and gradients consistently).
 function test_divergence_theorem(ip, cell, coords)
-    @testset "divergence theorem: $ip" begin
+    return @testset "divergence theorem: $ip" begin
         shape = getrefshape(ip)
         geo = Lagrange{shape, 1}()
         cv = CellValues(QuadratureRule{shape}(4), ip, geo)
@@ -301,7 +301,7 @@ end
 # Evaluate value and AD gradient with different float types (smoke test for
 # type-generic implementations).
 function test_type_genericity(ip)
-    @testset "type genericity: $ip" begin
+    return @testset "type genericity: $ip" begin
         shape = getrefshape(ip)
         dim = Ferrite.getrefdim(ip)
         for T in (Float32, Float64)
