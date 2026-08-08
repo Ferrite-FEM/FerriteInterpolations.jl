@@ -132,6 +132,37 @@ function test_symfem_reference(ip, family::String, degree::Int, perm::Vector{Int
     end
 end
 
+"""
+    test_symfem_reference_vector(ip, family, degree, sperm; npoints = 10)
+
+Vector-valued version of [`test_symfem_reference`](@ref): `sperm[i]` is a
+`(sign, j)` tuple mapping Ferrite DOF `i` to `sign` times the 0-based symfem
+DOF `j` (H(div)/H(curl) conventions differ by edge order, intra-edge weight
+order and normal/tangent sign, all absorbed in the signed permutation).
+"""
+function test_symfem_reference_vector(ip, family::String, degree::Int, sperm::Vector{Tuple{Int, Int}}; npoints = 10, kwargs...)
+    @testset "symfem cross-check: $ip" begin
+        shape = getrefshape(ip)
+        dim = Ferrite.getrefdim(ip)
+        N = getnbasefunctions(ip)
+        el = symfem.create_element(symfem_cellname(shape), family, degree; kwargs...)
+        @test pyconvert(Int, el.space_dim) == N
+        @test sort(last.(sperm)) == 0:(N - 1)
+        basis = el.get_basis_functions()
+        x = symfem.symbols.x
+        for _ in 1:npoints
+            ξ = sample_reference_point(shape)
+            sp = pytuple(Tuple(symfem_coords(shape, ξ)))
+            for i in 1:N
+                sign, j = sperm[i]
+                fj = basis[j].subs(x, sp)
+                expected = Vec{dim}(c -> sign * pyconvert(Float64, pybuiltins.float(fj[c - 1].as_sympy())))
+                @test reference_shape_value(ip, ξ, i) ≈ expected atol = 1.0e-12
+            end
+        end
+    end
+end
+
 # Evaluate value and AD gradient with different float types (smoke test for
 # type-generic implementations).
 function test_type_genericity(ip)

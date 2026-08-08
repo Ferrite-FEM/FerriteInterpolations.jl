@@ -29,6 +29,8 @@ include("gauss_legendre.jl")
 export GaussLegendre
 include("radau.jl")
 export Radau
+include("bdm.jl")
+export BDM
 
 # Blocked elements: documentation stubs describing required upstream Ferrite
 # changes (see each file). Included but not exported.
