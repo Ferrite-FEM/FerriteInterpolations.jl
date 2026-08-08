@@ -39,5 +39,6 @@ export BDFM
 # Blocked elements: documentation stubs describing required upstream Ferrite
 # changes (see each file). Included but not exported.
 include("mardal_tai_winther.jl")
+include("huang_zhang.jl")
 
 end # module FerriteInterpolations
