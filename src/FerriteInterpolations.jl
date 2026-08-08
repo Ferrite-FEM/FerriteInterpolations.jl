@@ -67,5 +67,6 @@ include("p1_macro.jl")
 include("guzman_neilan.jl")
 include("johnson_mercier.jl")
 include("regge.jl")
+include("arnold_winther.jl")
 
 end # module FerriteInterpolations
