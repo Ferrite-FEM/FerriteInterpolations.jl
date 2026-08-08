@@ -140,7 +140,7 @@ Vector-valued version of [`test_symfem_reference`](@ref): `sperm[i]` is a
 DOF `j` (H(div)/H(curl) conventions differ by edge order, intra-edge weight
 order and normal/tangent sign, all absorbed in the signed permutation).
 """
-function test_symfem_reference_vector(ip, family::String, degree::Int, sperm::Vector{Tuple{Int, Int}}; npoints = 10, kwargs...)
+function test_symfem_reference_vector(ip, family::String, degree::Int, sperm::Vector{<:Tuple{Real, Int}}; npoints = 10, kwargs...)
     @testset "symfem cross-check: $ip" begin
         shape = getrefshape(ip)
         dim = Ferrite.getrefdim(ip)
@@ -159,6 +159,77 @@ function test_symfem_reference_vector(ip, family::String, degree::Int, sperm::Ve
                 expected = Vec{dim}(c -> sign * pyconvert(Float64, pybuiltins.float(fj[c - 1].as_sympy())))
                 @test reference_shape_value(ip, ξ, i) ≈ expected atol = 1.0e-12
             end
+        end
+    end
+end
+
+# --- H(div) helpers ----------------------------------------------------------
+
+# Two-cell DofHandler + normal-continuity test for H(div) elements: cells 1
+# and 2 of `grid` share the edge (facet1 of cell 1, facet2 of cell 2, with
+# opposite orientation in the test grids); `nshared` edge DOFs are identified.
+# The normal component of an arbitrary field must agree at matching physical
+# points on the shared edge; if `tangential_moment`, the zeroth tangential
+# moment must also agree (MTW/HZ-type elements).
+function test_hdiv_two_cell(ip, grid, facet1::Int, facet2::Int, nshared::Int; tangential_moment = false)
+    @testset "two-cell H(div): $ip" begin
+        dh = DofHandler(grid)
+        add!(dh, :u, ip)
+        close!(dh)
+        N = getnbasefunctions(ip)
+        @test ndofs(dh) == 2N - nshared
+        @test length(intersect(celldofs(dh, 1), celldofs(dh, 2))) == nshared
+        u = rand(ndofs(dh))
+        shape = getrefshape(ip)
+        fqr = FacetQuadratureRule{shape}(4)
+        geo = Lagrange{shape, 1}()
+        fv1 = FacetValues(fqr, ip, geo)
+        fv2 = FacetValues(fqr, ip, geo)
+        coords1 = getcoordinates(grid, 1)
+        coords2 = getcoordinates(grid, 2)
+        reinit!(fv1, getcells(grid, 1), coords1, facet1)
+        reinit!(fv2, getcells(grid, 2), coords2, facet2)
+        u1 = u[celldofs(dh, 1)]
+        u2 = u[celldofs(dh, 2)]
+        tmoment = 0.0
+        for qp1 in 1:getnquadpoints(fv1)
+            x1 = spatial_coordinate(fv1, qp1, coords1)
+            qp2 = findfirst(qp -> norm(spatial_coordinate(fv2, qp, coords2) - x1) < 1.0e-12, 1:getnquadpoints(fv2))
+            @test qp2 !== nothing
+            n1 = getnormal(fv1, qp1)
+            t = Vec(-n1[2], n1[1])
+            v1 = function_value(fv1, qp1, u1)
+            v2 = function_value(fv2, qp2, u2)
+            @test v1 ⋅ n1 ≈ v2 ⋅ n1 rtol = 1.0e-10 atol = 1.0e-12
+            tmoment += ((v1 - v2) ⋅ t) * getdetJdV(fv1, qp1)
+        end
+        if tangential_moment
+            @test tmoment ≈ 0 atol = 1.0e-11
+        end
+    end
+end
+
+# Divergence theorem per basis function on a single cell: int div(N_i) dV
+# equals the total boundary flux (checks the contravariant Piola mapping of
+# values and gradients consistently).
+function test_divergence_theorem(ip, cell, coords)
+    @testset "divergence theorem: $ip" begin
+        shape = getrefshape(ip)
+        geo = Lagrange{shape, 1}()
+        cv = CellValues(QuadratureRule{shape}(4), ip, geo)
+        reinit!(cv, cell, coords)
+        fv = FacetValues(FacetQuadratureRule{shape}(4), ip, geo)
+        for i in 1:getnbasefunctions(ip)
+            vol = sum(shape_divergence(cv, qp, i) * getdetJdV(cv, qp) for qp in 1:getnquadpoints(cv))
+            flux = 0.0
+            for facet in 1:Ferrite.nfacets(ip)
+                reinit!(fv, cell, coords, facet)
+                flux += sum(
+                    (shape_value(fv, qp, i) ⋅ getnormal(fv, qp)) * getdetJdV(fv, qp)
+                        for qp in 1:getnquadpoints(fv)
+                )
+            end
+            @test vol ≈ flux atol = 1.0e-11
         end
     end
 end
