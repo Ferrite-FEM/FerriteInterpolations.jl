@@ -70,5 +70,6 @@ include("regge.jl")
 include("arnold_winther.jl")
 include("hellan_herrmann_johnson.jl")
 include("gopalakrishnan_lederer_schoberl.jl")
+include("arnold_boffi_falk.jl")
 
 end # module FerriteInterpolations
