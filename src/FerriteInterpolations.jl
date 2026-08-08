@@ -55,5 +55,6 @@ include("huang_zhang.jl")
 include("hermite.jl")
 include("argyris.jl")
 include("bell.jl")
+include("morley.jl")
 
 end # module FerriteInterpolations
