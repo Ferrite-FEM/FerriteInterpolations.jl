@@ -63,5 +63,6 @@ include("bernardi_raugel.jl")
 include("alfeld_sorokina.jl")
 include("hsieh_clough_tocher.jl")
 include("p1_iso_p2.jl")
+include("p1_macro.jl")
 
 end # module FerriteInterpolations
