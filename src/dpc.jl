@@ -13,12 +13,15 @@
 # symfem/basix's `simplex_equispaced` variant; all DOFs are cell DOFs
 # (DiscontinuousLagrange pattern), L2 conformity.
 #
-# Mapping deviation: DefElement specifies `mapping: L2 Piola` (values scale
-# by 1/det J). Ferrite has no such mapping, so the identity mapping is used,
-# as for Ferrite's own DiscontinuousLagrange. On affinely-mapped cells
-# (parallelograms/parallelepipeds) the spanned space is identical (the
-# 1/det J factor is a per-cell constant); on non-affinely-mapped cells the
-# two variants span different physical spaces.
+# Mapping: `L2 Piola` as specified by DefElement, i.e. physical values are
+# N(x) = N̂(ξ)/det J, provided by this package's own `L2PiolaMapping` (see
+# src/l2_piola.jl). Consequently the point-evaluation DOFs act on the
+# reference function: the coefficient of DOF i represents det J times the
+# physical field value at the mapped lattice point (on affine cells this is
+# a constant per-cell scaling and the spanned space coincides with the
+# identity-mapped one). Note that the vectorized element `DPC^vdim` (vector
+# dPc) keeps the identity mapping through Ferrite's VectorizedInterpolation,
+# which matches DefElement: vector dPc is declared with `mapping: identity`.
 #
 # Unlike DiscontinuousLagrange, no `dirichlet_*dof_indices` are defined: the
 # asymmetric lattice leaves most facets with an incomplete trace point set
@@ -44,6 +47,13 @@ struct DPC{shape, order} <: ScalarInterpolation{shape, order} end
 
 Ferrite.conformity(::DPC) = Ferrite.L2Conformity()
 Ferrite.adjust_dofs_during_distribution(::DPC) = false
+Ferrite.mapping_type(::DPC) = L2PiolaMapping()
+
+# Ferrite requires the cell in reinit! for non-identity mappings because the
+# Piola mappings need it for `get_direction`; the L2 Piola mapping does not
+# use the cell, so keep the cell-less `reinit!(values, coords)` working.
+Ferrite.reinit_needs_cell(::Ferrite.CellValues{<:Ferrite.FunctionValues{<:Any, <:DPC}}) = false
+Ferrite.reinit_needs_cell(::Ferrite.FacetValues{<:Ferrite.FunctionValues{<:Any, <:DPC}}) = false
 
 # All DOFs in the cell interior (not shared between cells), like
 # DiscontinuousLagrange.

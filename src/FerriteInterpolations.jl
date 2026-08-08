@@ -7,6 +7,8 @@ using Ferrite:
 using Tensors: Vec
 
 include("common.jl")
+include("l2_piola.jl")
+export L2PiolaMapping
 
 # Implemented elements (one file per element)
 include("bernstein.jl")

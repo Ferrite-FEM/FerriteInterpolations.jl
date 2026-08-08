@@ -27,10 +27,10 @@ include("test_utils.jl")
         test_symfem_reference(ip, "dPc", Ferrite.getorder(ip), collect(0:(N - 1)))
     end
 
-    # (ii) Integration tests: nodal interpolation of a degree-k polynomial is
-    # exact on affinely-mapped cells (parallelogram / parallelepiped -- for
-    # non-affine mappings P_k is not reproduced, cf. the mapping note in
-    # src/dpc.jl).
+    # (ii) Integration tests: dPc uses the L2 Piola mapping N(x) = N̂(ξ)/detJ
+    # (src/l2_piola.jl). On affinely-mapped cells (parallelogram /
+    # parallelepiped) detJ is constant, so nodal interpolation of a degree-k
+    # polynomial is exact with the coefficients scaled by detJ.
     quad_coords = [Vec((0.0, 0.0)), Vec((2.0, 0.3)), Vec((2.4, 1.8)), Vec((0.4, 1.5))]
     hex_coords = begin
         a, u, v, w = Vec((0.0, 0.0, 0.0)), Vec((1.1, 0.1, 0.0)), Vec((0.2, 1.3, 0.1)), Vec((0.0, 0.2, 0.9))
@@ -45,12 +45,45 @@ include("test_utils.jl")
         b = Vec{dim}(ntuple(i -> Float64(i), dim))
         f(x) = (1 + x ⋅ b / 4)^k
         spatial(ξ) = sum(Ferrite.reference_shape_value(geo, ξ, j) * coords[j] for j in 1:length(coords))
-        ue = [f(spatial(ξ)) for ξ in Ferrite.reference_coordinates(ip)]
+        detJ = Ferrite.Tensors.det(Ferrite.Tensors.gradient(spatial, zero(Vec{dim})))
+        ue = [detJ * f(spatial(ξ)) for ξ in Ferrite.reference_coordinates(ip)]
         cv = CellValues(QuadratureRule{shape}(k + 1), ip, geo)
         reinit!(cv, coords)
         for qp in 1:getnquadpoints(cv)
             x = spatial_coordinate(cv, qp, coords)
             @test function_value(cv, qp, ue) ≈ f(x) atol = 1.0e-11
+        end
+    end
+
+    # L2 Piola mapping on a genuinely NON-affine quadrilateral: check values
+    # and gradients from CellValues against an independent computation of
+    # N̂(ξ)/detJ(ξ) and its chain-rule gradient via nested automatic
+    # differentiation of the bilinear geometry map (this validates the
+    # ∇ₓ(detJ) term in the mapping, which vanishes on affine cells).
+    @testset "L2 Piola on non-affine cell: $ip" for ip in (DPC{RefQuadrilateral, 2}(), DPC{RefQuadrilateral, 3}())
+        coords = [Vec((0.0, 0.0)), Vec((2.1, 0.2)), Vec((1.7, 2.4)), Vec((-0.3, 1.1))]
+        geo = Lagrange{RefQuadrilateral, 1}()
+        spatial(ξ) = sum(Ferrite.reference_shape_value(geo, ξ, j) * coords[j] for j in 1:4)
+        jac(ξ) = Ferrite.Tensors.gradient(spatial, ξ)
+        manual_value(ξ, i) = reference_shape_value(ip, ξ, i) / Ferrite.Tensors.det(jac(ξ))
+        manual_grad(ξ, i) = inv(jac(ξ))' ⋅ Ferrite.Tensors.gradient(η -> manual_value(η, i), ξ)
+        qr = QuadratureRule{RefQuadrilateral}(3)
+        cv = CellValues(qr, ip, geo)
+        reinit!(cv, coords)
+        for (qp, ξ) in pairs(Ferrite.getpoints(qr)), i in 1:getnbasefunctions(ip)
+            @test shape_value(cv, qp, i) ≈ manual_value(ξ, i) atol = 1.0e-12
+            @test shape_gradient(cv, qp, i) ≈ manual_grad(ξ, i) atol = 1.0e-11
+        end
+        # FacetValues use the same mapping: with Σᵢ N̂ᵢ = 1 (reference
+        # partition of unity) the mapped sum must equal 1/detJ on facets too.
+        fqr = FacetQuadratureRule{RefQuadrilateral}(2)
+        fv = FacetValues(fqr, ip, geo)
+        for facet in 1:4
+            reinit!(fv, coords, facet)
+            for (qp, ξ) in pairs(Ferrite.getpoints(fqr, facet))
+                s = sum(shape_value(fv, qp, i) for i in 1:getnbasefunctions(ip))
+                @test s ≈ 1 / Ferrite.Tensors.det(jac(ξ)) atol = 1.0e-12
+            end
         end
     end
 
