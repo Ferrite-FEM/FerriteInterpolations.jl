@@ -15,6 +15,18 @@ Elements that already exist in Ferrite are deliberately **not** re-implemented
 here — see [ExistingElements.md](ExistingElements.md) for that list, including
 notes on degrees/cells Ferrite covers and gaps.
 
+> **Note (this branch):** demonstrates that the general per-cell DOF
+> transformations from
+> [Ferrite-FEM/Ferrite.jl#1391](https://github.com/Ferrite-FEM/Ferrite.jl/pull/1391)
+> unblock derivative-DOF elements downstream
+> ([#2](https://github.com/Ferrite-FEM/FerriteInterpolations.jl/issues/2)):
+> it implements the Bogner-Fox-Schmit element
+> ([#12](https://github.com/Ferrite-FEM/FerriteInterpolations.jl/issues/12),
+> diagonal M through Ferrite's `DiagonalDofTransformation`) and the cubic
+> Hermite triangle (non-diagonal M with per-vertex Jacobian blocks, through a
+> package-local `apply_dof_transformation!`). `[sources]` pins Ferrite to the
+> `kc/hermite` branch of that PR.
+
 ## Elements
 
 The Type column gives the interpolation type implemented in this package (or in
@@ -30,7 +42,7 @@ available.
 | [bell](https://defelement.org/elements/bell.html) | - | blocked (derivative DOFs): [#8](https://github.com/Ferrite-FEM/FerriteInterpolations.jl/issues/8) |
 | [bernardi-raugel](https://defelement.org/elements/bernardi-raugel.html) | - | blocked (geometry-dependent facet DOFs): [#13](https://github.com/Ferrite-FEM/FerriteInterpolations.jl/issues/13) |
 | [bernstein](https://defelement.org/elements/bernstein.html) | `Bernstein` | line 1–3, triangle 1–3, tetrahedron 1–2 (tet ≥ 3 needs [#5](https://github.com/Ferrite-FEM/FerriteInterpolations.jl/issues/5)) |
-| [bogner-fox-schmitt](https://defelement.org/elements/bogner-fox-schmitt.html) | - | blocked (derivative DOFs): [#12](https://github.com/Ferrite-FEM/FerriteInterpolations.jl/issues/12) |
+| [bogner-fox-schmitt](https://defelement.org/elements/bogner-fox-schmitt.html) | `BognerFoxSchmitt` | quadrilateral (degree 3, as defined); axis-aligned rectangular cells only (fundamental, see the file header); closes [#12](https://github.com/Ferrite-FEM/FerriteInterpolations.jl/issues/12) on this branch |
 | [brezzi-douglas-duran-fortin](https://defelement.org/elements/brezzi-douglas-duran-fortin.html) | - | blocked (3D face DOF orientation): [#28](https://github.com/Ferrite-FEM/FerriteInterpolations.jl/issues/28) |
 | [brezzi-douglas-fortin-marini](https://defelement.org/elements/brezzi-douglas-fortin-marini.html) | `BDFM` | triangle, degrees 1–2 |
 | [brezzi-douglas-marini](https://defelement.org/elements/brezzi-douglas-marini.html) | `BrezziDouglasMarini`, `BDM` | degree 1 in Ferrite, degree 2 here |
@@ -50,7 +62,7 @@ available.
 | [guzman-neilan (first kind)](https://defelement.org/elements/guzman-neilan.html) | - | blocked (macro split): [#22](https://github.com/Ferrite-FEM/FerriteInterpolations.jl/issues/22) |
 | [guzman-neilan (second kind)](https://defelement.org/elements/guzman-neilan2.html) | - | blocked (macro split): [#22](https://github.com/Ferrite-FEM/FerriteInterpolations.jl/issues/22) |
 | [hellan-herrmann-johnson](https://defelement.org/elements/hellan-herrmann-johnson.html) | - | blocked (matrix-valued): [#26](https://github.com/Ferrite-FEM/FerriteInterpolations.jl/issues/26) |
-| [hermite](https://defelement.org/elements/hermite.html) | - | blocked (derivative DOFs): [#6](https://github.com/Ferrite-FEM/FerriteInterpolations.jl/issues/6) |
+| [hermite](https://defelement.org/elements/hermite.html) | `Hermite` | triangle (degree 3, as defined), any affine cell; the interval version is `Ferrite.Hermite{RefLine, 3}` on the Ferrite branch; the tetrahedron follows the same pattern |
 | [hsieh-clough-tocher](https://defelement.org/elements/hsieh-clough-tocher.html) | - | blocked (macro split): [#18](https://github.com/Ferrite-FEM/FerriteInterpolations.jl/issues/18) |
 | [huang-zhang](https://defelement.org/elements/huang-zhang.html) | - | blocked (tangential edge moments): [#16](https://github.com/Ferrite-FEM/FerriteInterpolations.jl/issues/16) |
 | [johnson-mercier](https://defelement.org/elements/johnson-mercier.html) | - | blocked (macro split, matrix-valued): [#23](https://github.com/Ferrite-FEM/FerriteInterpolations.jl/issues/23) |

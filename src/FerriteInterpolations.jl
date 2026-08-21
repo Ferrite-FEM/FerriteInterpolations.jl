@@ -47,18 +47,22 @@ include("taylor.jl")
 export Taylor, TaylorMapping
 include("transition.jl")
 export Transition
+# The following two elements require the general per-cell dof transformations
+# from Ferrite-FEM/Ferrite.jl#1391 (see #2), which this branch depends on.
+include("bogner_fox_schmitt.jl")
+export BognerFoxSchmitt
+include("hermite.jl")
+export Hermite, HermiteDofTransformation
 
 # Blocked elements: documentation stubs describing required upstream Ferrite
 # changes (see each file). Included but not exported.
 include("mardal_tai_winther.jl")
 include("huang_zhang.jl")
-include("hermite.jl")
 include("argyris.jl")
 include("bell.jl")
 include("morley.jl")
 include("morley_wang_xu.jl")
 include("wu_xu.jl")
-include("bogner_fox_schmitt.jl")
 include("bernardi_raugel.jl")
 include("alfeld_sorokina.jl")
 include("hsieh_clough_tocher.jl")
