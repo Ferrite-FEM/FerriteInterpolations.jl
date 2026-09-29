@@ -38,22 +38,13 @@ include("test_utils.jl")
     # Ferrite <-> symfem Lagrange permutation (derived geometrically from the
     # Lagrange DOF points at runtime) with the constant appended. Excluded:
     # the prism and the pyramid, since symfem does not implement enriched
-    # Galerkin on them ("element cannot be created on a prism/pyramid") --
-    # and Ferrite's pyramid Lagrange is a polynomial variant of the rational
-    # DefElement basis anyway. The delegation has no per-cell code, so the
-    # remaining cells cover the implementation.
-    function symfem_lagrange_perm(shape, degree)
-        lag = Lagrange{shape, degree}()
-        el = symfem.create_element(symfem_cellname(shape), "Lagrange", degree)
-        dim = Ferrite.getrefdim(lag)
-        spts = [Vec{dim}(ntuple(j -> pyconvert(Float64, pybuiltins.float(d.point[j - 1])), dim)) for d in el.dofs]
-        fpts = [symfem_coords(shape, ξ) for ξ in Ferrite.reference_coordinates(lag)]
-        return [findfirst(p -> norm(p - fp) < 1.0e-10, spts) - 1 for fp in fpts]
-    end
+    # Galerkin on them ("element cannot be created on a prism/pyramid"). The
+    # delegation has no per-cell code, so the remaining cells cover the
+    # implementation.
     for ip in ips
         getrefshape(ip) in (RefPrism, RefPyramid) && continue
         shape, k = getrefshape(ip), Ferrite.getorder(ip)
-        perm = vcat(symfem_lagrange_perm(shape, k), getnbasefunctions(ip) - 1)
+        perm = vcat(symfem_point_perm(Lagrange{shape, k}(), "Lagrange", k), getnbasefunctions(ip) - 1)
         test_symfem_reference(ip, "enriched Galerkin", k, perm)
     end
 
