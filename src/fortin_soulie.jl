@@ -37,11 +37,13 @@
 # singular on a single cell; this is not a Ciarlet element.
 #
 # Differences from DefElement (which cites the same paper): DefElement/symfem
-# use continuity at the points 1/3 and 2/3 along each edge instead of the Gauss
-# points, and a local element with six point-evaluation DOFs (two points on two
-# edges, the midpoint of the third edge, and the centroid). Neither appears in
-# the paper. This file follows the paper, so it is not cross-checked against
-# symfem's "Fortin-Soulie" element.
+# define a local element with six point-evaluation DOFs (two points on two
+# edges, the midpoint of the third edge, and the centroid), which does not
+# appear in the paper and cannot give the Fortin-Soulie space through DOF
+# sharing. This file follows the paper, so it is not cross-checked against
+# symfem's "Fortin-Soulie" element. (symfem up to version 2025.12 also used the
+# points 1/3 and 2/3 along each edge instead of the Gauss points; this is fixed
+# in https://github.com/mscroggs/symfem/pull/344.)
 #
 # `reference_coordinates` lists the Lagrange nodes and, for the neutral
 # function, the centroid (as Ferrite's `BubbleEnrichedLagrange` does). Only the
