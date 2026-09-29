@@ -1,77 +1,93 @@
 # Fortin-Soulie element (https://defelement.org/elements/fortin-soulie.html,
-# DefElement: elements/fortin-soulie.def).
+# DefElement: elements/fortin-soulie.def), implemented as in the original paper:
+# M. Fortin and M. Soulie, "A non-conforming piecewise quadratic finite element
+# on triangles", IJNME 19 (1983), DOI 10.1002/nme.1620190405.
 #
 # Cells/degrees implemented: RefTriangle degree 2 (the element only exists for
 # degree 2). Conformity: L2 (nonconforming), identity mapping.
 #
-# The six point-evaluation DOFs at the two Gauss-like third-points of every
-# edge are linearly dependent on P2 (the nonconforming P2 bubble vanishes at
-# all six), so the element is necessarily asymmetric (Fortin & Soulie, "A
-# non-conforming piecewise quadratic finite element on triangles", IJNME 19
-# (1983), DOI 10.1002/nme.1620190405): two point evaluations on edges 1 and 2
-# (at the third-points, ordered from the first towards the second vertex of
-# the reference edge), ONE on edge 3 (its midpoint), and one at the centroid.
+# The Fortin-Soulie space W_h consists of the piecewise quadratics that are
+# continuous at the two Gauss-Legendre points of every interior edge (the patch
+# test then holds: the jump across an edge is orthogonal to P1 there). The six
+# Gauss points of a triangle lie on an ellipse, so they cannot be used as DOFs.
+# Instead, following Proposition 1 of the paper, W_h = X_h + Phi_h, where X_h is
+# the standard continuous P2 space and Phi_h contains one "neutral function" per
+# triangle,
 #
-# Following DiscontinuousLagrange, all DOFs are cell DOFs
-# (volumedof_interior_indices): in Ferrite, entity-attached DOFs are
-# identified across neighboring cells, and the Fortin-Soulie global
-# nonconforming space (agreement at two Gauss points per interior edge)
-# cannot be realized that way -- each triangle has exactly one single-DOF
-# edge, so on a general mesh some shared edge would pair two DOFs of one
-# cell with one of the other. Realizing the coupled Fortin-Soulie space
-# would need mesh-level machinery (a mesh-dependent choice of local DOF
-# layout) that Ferrite does not have; with cell DOFs the element is usable
-# as a broken/DG-style basis, with any coupling imposed weakly. The
-# geometric edge association of the DOFs is exposed through
-# `dirichlet_edgedof_indices` so that facet Dirichlet BCs work.
+#     phi_0(x) = 2 - 3 (lambda_1^2 + lambda_2^2 + lambda_3^2),
 #
-# All DOFs are point evaluations, so `reference_coordinates` is defined.
-# DOF order: edge 1 points: (1, 2); edge 2 points: (3, 4); edge 3 point: (5,);
-# centroid: (6,).
+# which vanishes at all six Gauss points and equals 1 at the centroid. So the
+# interpolation is Ferrite's `Lagrange{RefTriangle, 2}` (DOFs 1-6, keeping their
+# vertex/edge association and hence shared between cells as usual) plus phi_0 as
+# a cell DOF (DOF 7). Adding phi_0 on a cell leaves the Gauss-point values
+# unchanged, which is why the enriched space is only Gauss-Legendre continuous.
 #
-# Basis: transcribed from symfem ("Fortin-Soulie", degree 2); the reference
-# triangles agree pointwise (same coordinates, different vertex numbering),
-# see test/test_fortin_soulie.jl for the cross-check.
+# The representation is not unique: dim(X_h ∩ Phi_h) = 1, since the sum of the
+# neutral functions of all cells is itself continuous (its trace on every edge is
+# the same quadratic, -1 at the vertices and 1/2 at the midpoint). Consequences
+# (paper, p. 508):
+#  * With Dirichlet conditions (on any part of the boundary) the representation
+#    is unique, and the conditions are imposed on the X_h components, i.e. on the
+#    vertex and midpoint DOFs -- which is what Ferrite's facet Dirichlet does
+#    through the Lagrange entity DOFs.
+#  * For pure Neumann problems, two X_h values must be fixed instead of one (one
+#    at a vertex and one at a midpoint), since constants can be written in two
+#    ways.
+# Locally, the seven functions span P2 (dimension 6), so element matrices are
+# singular on a single cell; this is not a Ciarlet element.
+#
+# Differences from DefElement (which cites the same paper): DefElement/symfem
+# use continuity at the points 1/3 and 2/3 along each edge instead of the Gauss
+# points, and a local element with six point-evaluation DOFs (two points on two
+# edges, the midpoint of the third edge, and the centroid). Neither appears in
+# the paper. This file follows the paper, so it is not cross-checked against
+# symfem's "Fortin-Soulie" element.
+#
+# `reference_coordinates` lists the Lagrange nodes and, for the neutral
+# function, the centroid (as Ferrite's `BubbleEnrichedLagrange` does). Only the
+# Lagrange nodes are used by facet Dirichlet conditions; nodal interpolation
+# (e.g. `apply_analytical!`) is not an interpolant of this element, since the
+# basis is not nodal.
 
 """
-    FortinSoulie{shape, order}()
+    FortinSoulie{RefTriangle, 2}()
 
-Fortin-Soulie element on the triangle, degree 2. Nonconforming (L2), with two
-point-evaluation DOFs on the first two edges, one on the third, and one at the
-centroid. All DOFs are cell DOFs (not shared between cells); see the source
-file for why the coupled Fortin-Soulie space is not representable in Ferrite.
+Fortin-Soulie nonconforming quadratic element on the triangle, as constructed in
+Fortin & Soulie (1983): continuous P2 (the six `Lagrange{RefTriangle, 2}` DOFs,
+shared between cells) enriched with one neutral function per cell,
+`2 - 3(λ₁² + λ₂² + λ₃²)`, which vanishes at the Gauss-Legendre points of the edges.
+The resulting global space is the piecewise quadratics that are continuous at the
+two Gauss-Legendre points of every interior edge.
+
+Impose Dirichlet conditions as usual (they act on the vertex and midpoint DOFs).
+For pure Neumann problems, fix one vertex and one midpoint value, since the
+representation has one global degree of freedom too many.
 """
 struct FortinSoulie{shape, order} <: ScalarInterpolation{shape, order} end
 
-Ferrite.conformity(::FortinSoulie) = Ferrite.L2Conformity()
-Ferrite.adjust_dofs_during_distribution(::FortinSoulie) = false
+const _FortinSoulieP2 = Ferrite.Lagrange{RefTriangle, 2}()
 
-Ferrite.getnbasefunctions(::FortinSoulie{RefTriangle, 2}) = 6
+Ferrite.conformity(::FortinSoulie) = Ferrite.L2Conformity()
+Ferrite.adjust_dofs_during_distribution(::FortinSoulie{RefTriangle, 2}) =
+    Ferrite.adjust_dofs_during_distribution(_FortinSoulieP2)
+
+Ferrite.getnbasefunctions(::FortinSoulie{RefTriangle, 2}) = 7
 
 function Ferrite.reference_shape_value(ip::FortinSoulie{RefTriangle, 2}, ξ::Vec{2}, i::Int)
-    x, y = ξ[1], ξ[2]
-    i == 1 && return 9x^2 / 2 - 3x / 2 - 27y^2 / 16 + 27y / 16 - 3 // 8
-    i == 2 && return 9x * y - 3x + 27y^2 / 4 - 27y / 4 + 3 // 2
-    i == 3 && return -9x * y + 3x - 9y^2 / 4 + 21y / 4 - 3 // 2
-    i == 4 && return 9x^2 / 2 + 9x * y - 15x / 2 + 45y^2 / 16 - 93y / 16 + 21 // 8
-    i == 5 && return 9y^2 / 2 - 9y / 2 + 1
-    i == 6 && return -9x^2 - 9x * y + 9x - 81y^2 / 8 + 81y / 8 - 9 // 4
+    1 <= i <= 6 && return Ferrite.reference_shape_value(_FortinSoulieP2, ξ, i)
+    if i == 7
+        # Neutral function in barycentric coordinates (λ₁, λ₂, λ₃) = (ξ₁, ξ₂, 1 - ξ₁ - ξ₂)
+        λ₁, λ₂ = ξ[1], ξ[2]
+        λ₃ = 1 - λ₁ - λ₂
+        return 2 - 3 * (λ₁^2 + λ₂^2 + λ₃^2)
+    end
     return throw_out_of_range(ip, i)
 end
 
+Ferrite.vertexdof_indices(::FortinSoulie{RefTriangle, 2}) = Ferrite.vertexdof_indices(_FortinSoulieP2)
+Ferrite.edgedof_interior_indices(::FortinSoulie{RefTriangle, 2}) = Ferrite.edgedof_interior_indices(_FortinSoulieP2)
+Ferrite.facedof_interior_indices(::FortinSoulie{RefTriangle, 2}) = ((7,),)
+
 function Ferrite.reference_coordinates(::FortinSoulie{RefTriangle, 2})
-    return [
-        Vec((2 / 3, 1 / 3)), Vec((1 / 3, 2 / 3)), # on edge 1
-        Vec((0.0, 2 / 3)), Vec((0.0, 1 / 3)),     # on edge 2
-        Vec((1 / 2, 0.0)),                        # on edge 3
-        Vec((1 / 3, 1 / 3)),                      # centroid
-    ]
+    return [Ferrite.reference_coordinates(_FortinSoulieP2)..., Vec{2, Float64}((1 / 3, 1 / 3))]
 end
-
-# All DOFs in the cell interior (not shared between cells), like
-# DiscontinuousLagrange.
-Ferrite.volumedof_interior_indices(ip::FortinSoulie) = ntuple(i -> i, Ferrite.getnbasefunctions(ip))
-
-# Geometric edge association of the point-evaluation DOFs, for facet
-# Dirichlet BCs.
-Ferrite.dirichlet_edgedof_indices(::FortinSoulie{RefTriangle, 2}) = ((1, 2), (3, 4), (5,))
