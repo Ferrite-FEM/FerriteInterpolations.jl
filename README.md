@@ -121,6 +121,12 @@ Degrees are given in *Ferrite's* numbering. For Raviart–Thomas and Nédélec
 - One test file per element in `test/`, with interpolation-level tests
   (properties, reference tabulation tables) and integration tests via
   `CellValues`/`FacetValues`.
+- Elements that exist in Ferrite also get one test file each, with symfem
+  cross-checks only (Ferrite's own test suite covers the rest). Their bases
+  agree with symfem up to a signed permutation (scaled by the Piola factor of
+  the reference-cell map for `RaviartThomas`/`Nedelec` on hypercubes), except
+  `Serendipity`, where only the spans agree since Ferrite uses edge-midpoint
+  point evaluations instead of integral moments.
 
 ## Development setup
 

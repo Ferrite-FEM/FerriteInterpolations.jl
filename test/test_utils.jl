@@ -11,6 +11,7 @@ using Test
 include(joinpath(pkgdir(Ferrite), "test", "interpolation_test_utils.jl"))
 
 const symfem = pyimport("symfem")
+const sympy = pyimport("sympy")
 
 # Sample a (not necessarily uniformly distributed) random point strictly inside
 # the reference cell.
@@ -102,6 +103,16 @@ symfem_cellname(::Type{RefPyramid}) = "pyramid"
 symfem_coords(::Type{<:Ferrite.RefHypercube}, ξ::Vec) = (ξ .+ 1) ./ 2
 symfem_coords(::Type{<:Ferrite.AbstractRefShape}, ξ::Vec) = ξ
 
+# `ξ` mapped to the symfem cell as a tuple of exact sympy rationals, for
+# substitution into symfem basis functions. These are expanded polynomials with
+# large rational coefficients, so substituting floats loses digits to
+# cancellation (errors > 1e-12 for e.g. Lagrange{RefHexahedron, 3}); the exact
+# evaluation is rounded to Float64 only at the end.
+function symfem_point(shape, ξ::Vec)
+    s = symfem_coords(shape, Vec(Rational{BigInt}.(ξ.data)))
+    return pytuple(Tuple(sympy.Rational(string(numerator(c)), string(denominator(c))) for c in s))
+end
+
 """
     test_symfem_reference(ip, family, degree, perm; npoints = 10)
 
@@ -123,7 +134,7 @@ function test_symfem_reference(ip, family::String, degree::Int, perm::Vector{Int
         x = symfem.symbols.x
         for _ in 1:npoints
             ξ = sample_reference_point(shape)
-            sp = pytuple(Tuple(symfem_coords(shape, ξ)))
+            sp = symfem_point(shape, ξ)
             for i in 1:N
                 expected = pyconvert(Float64, pybuiltins.float(basis[perm[i]].subs(x, sp).as_sympy()))
                 scales !== nothing && (expected *= scales[i])
@@ -153,7 +164,7 @@ function test_symfem_reference_vector(ip, family::String, degree::Int, sperm::Ve
         x = symfem.symbols.x
         for _ in 1:npoints
             ξ = sample_reference_point(shape)
-            sp = pytuple(Tuple(symfem_coords(shape, ξ)))
+            sp = symfem_point(shape, ξ)
             for i in 1:N
                 sign, j = sperm[i]
                 fj = basis[j].subs(x, sp)
@@ -161,6 +172,49 @@ function test_symfem_reference_vector(ip, family::String, degree::Int, sperm::Ve
                 @test reference_shape_value(ip, ξ, i) ≈ expected atol = 1.0e-12
             end
         end
+    end
+end
+
+"""
+    symfem_point_perm(ip, family, degree; kwargs...)
+
+Permutation for [`test_symfem_reference`](@ref) of a nodal element, derived
+geometrically: Ferrite DOF `i` (at `reference_coordinates(ip)[i]`) maps to the
+0-based symfem point-evaluation DOF at the same (mapped) reference point.
+"""
+function symfem_point_perm(ip, family::String, degree::Int; kwargs...)
+    shape = getrefshape(ip)
+    dim = Ferrite.getrefdim(ip)
+    el = symfem.create_element(symfem_cellname(shape), family, degree; kwargs...)
+    spts = [Vec{dim}(ntuple(j -> pyconvert(Float64, pybuiltins.float(d.point[j - 1])), dim)) for d in el.dofs]
+    fpts = [symfem_coords(shape, ξ) for ξ in Ferrite.reference_coordinates(ip)]
+    return [findfirst(p -> norm(p - fp) < 1.0e-10, spts) - 1 for fp in fpts]
+end
+
+"""
+    test_symfem_span(ip, family, degree; kwargs...)
+
+Check that the (scalar) basis of `ip` spans the same space as the symfem
+element `create_element(cell, family, degree)`, for elements whose basis
+differs from symfem's because the DOFs differ (least-squares fits both ways
+at random points, residuals ≈ 0).
+"""
+function test_symfem_span(ip, family::String, degree::Int; kwargs...)
+    return @testset "symfem span: $ip" begin
+        shape = getrefshape(ip)
+        N = getnbasefunctions(ip)
+        el = symfem.create_element(symfem_cellname(shape), family, degree; kwargs...)
+        @test pyconvert(Int, el.space_dim) == N
+        basis = el.get_basis_functions()
+        x = symfem.symbols.x
+        points = [sample_reference_point(shape) for _ in 1:(3 * N + 10)]
+        A = [reference_shape_value(ip, ξ, i) for ξ in points, i in 1:N]
+        B = [
+            pyconvert(Float64, pybuiltins.float(basis[j].subs(x, symfem_point(shape, ξ)).as_sympy()))
+                for ξ in points, j in 0:(N - 1)
+        ]
+        @test norm(A - B * (B \ A)) < 1.0e-10 * norm(A)
+        @test norm(B - A * (A \ B)) < 1.0e-10 * norm(B)
     end
 end
 
