@@ -19,39 +19,39 @@
 # permutation of symfem's. Moment DOFs: not nodal, no reference_coordinates.
 
 """
-    BDFM{shape, order}()
+    BrezziDouglasFortinMarini{shape, order}()
 
 Brezzi-Douglas-Fortin-Marini H(div) element on the triangle, degrees 1-2:
 vector polynomials of degree order+1 whose normal trace has degree order,
 with order+1 normal-moment DOFs per edge plus interior moments.
 """
-struct BDFM{shape, order, vdim} <: VectorInterpolation{vdim, shape, order}
-    function BDFM{shape, order}() where {rdim, shape <: Ferrite.AbstractRefShape{rdim}, order}
+struct BrezziDouglasFortinMarini{shape, order, vdim} <: VectorInterpolation{vdim, shape, order}
+    function BrezziDouglasFortinMarini{shape, order}() where {rdim, shape <: Ferrite.AbstractRefShape{rdim}, order}
         return new{shape, order, rdim}()
     end
-    function BDFM{shape, order, rdim}() where {rdim, shape <: Ferrite.AbstractRefShape{rdim}, order}
+    function BrezziDouglasFortinMarini{shape, order, rdim}() where {rdim, shape <: Ferrite.AbstractRefShape{rdim}, order}
         return new{shape, order, rdim}() # Support construction from `typeof(ip)()`
     end
 end
 
-Ferrite.mapping_type(::BDFM) = Ferrite.ContravariantPiolaMapping()
-Ferrite.conformity(::BDFM) = Ferrite.HdivConformity()
-Ferrite.adjust_dofs_during_distribution(::BDFM) = true
+Ferrite.mapping_type(::BrezziDouglasFortinMarini) = Ferrite.ContravariantPiolaMapping()
+Ferrite.conformity(::BrezziDouglasFortinMarini) = Ferrite.HdivConformity()
+Ferrite.adjust_dofs_during_distribution(::BrezziDouglasFortinMarini) = true
 
 ##########
 # Degree 1
 ##########
 
-Ferrite.getnbasefunctions(::BDFM{RefTriangle, 1}) = 9
-Ferrite.edgedof_interior_indices(::BDFM{RefTriangle, 1}) = ((1, 2), (3, 4), (5, 6))
-Ferrite.facedof_interior_indices(::BDFM{RefTriangle, 1}) = ((7, 8, 9),)
+Ferrite.getnbasefunctions(::BrezziDouglasFortinMarini{RefTriangle, 1}) = 9
+Ferrite.edgedof_interior_indices(::BrezziDouglasFortinMarini{RefTriangle, 1}) = ((1, 2), (3, 4), (5, 6))
+Ferrite.facedof_interior_indices(::BrezziDouglasFortinMarini{RefTriangle, 1}) = ((7, 8, 9),)
 
-function Ferrite.get_direction(::BDFM{RefTriangle, 1}, shape_nr::Int, cell)
+function Ferrite.get_direction(::BrezziDouglasFortinMarini{RefTriangle, 1}, shape_nr::Int, cell)
     shape_nr > 6 && return 1
     return Ferrite.get_edge_direction(cell, (shape_nr + 1) ÷ 2)
 end
 
-function Ferrite.reference_shape_value(ip::BDFM{RefTriangle, 1}, ξ::Vec{2}, i::Int)
+function Ferrite.reference_shape_value(ip::BrezziDouglasFortinMarini{RefTriangle, 1}, ξ::Vec{2}, i::Int)
     x, y = ξ[1], ξ[2]
     # Edge 1: dofs at s = 0, 1 along (1,0) -> (0,1)
     i == 1 && return Vec(13 * x^2 + 10 * x * y - 9 * x, -2 * x * y - 5 * y^2 + 3 * y)
@@ -73,16 +73,16 @@ end
 # Degree 2
 ##########
 
-Ferrite.getnbasefunctions(::BDFM{RefTriangle, 2}) = 17
-Ferrite.edgedof_interior_indices(::BDFM{RefTriangle, 2}) = ((1, 2, 3), (4, 5, 6), (7, 8, 9))
-Ferrite.facedof_interior_indices(::BDFM{RefTriangle, 2}) = ((10, 11, 12, 13, 14, 15, 16, 17),)
+Ferrite.getnbasefunctions(::BrezziDouglasFortinMarini{RefTriangle, 2}) = 17
+Ferrite.edgedof_interior_indices(::BrezziDouglasFortinMarini{RefTriangle, 2}) = ((1, 2, 3), (4, 5, 6), (7, 8, 9))
+Ferrite.facedof_interior_indices(::BrezziDouglasFortinMarini{RefTriangle, 2}) = ((10, 11, 12, 13, 14, 15, 16, 17),)
 
-function Ferrite.get_direction(::BDFM{RefTriangle, 2}, shape_nr::Int, cell)
+function Ferrite.get_direction(::BrezziDouglasFortinMarini{RefTriangle, 2}, shape_nr::Int, cell)
     shape_nr > 9 && return 1
     return Ferrite.get_edge_direction(cell, (shape_nr + 2) ÷ 3)
 end
 
-function Ferrite.reference_shape_value(ip::BDFM{RefTriangle, 2}, ξ::Vec{2}, i::Int)
+function Ferrite.reference_shape_value(ip::BrezziDouglasFortinMarini{RefTriangle, 2}, ξ::Vec{2}, i::Int)
     x, y = ξ[1], ξ[2]
     # Edge 1: dofs at s = 0, 1/2, 1 along (1,0) -> (0,1)
     i == 1 && return Vec(73 * x^3 + 42 * x^2 * y - 21 * x * y^2 - 80 * x^2 + 16 * x, -39 * x^2 * y - 42 * x * y^2 + 7 * y^3 + 40 * x * y - 4 * y)
