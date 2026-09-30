@@ -27,7 +27,7 @@ Interpolations implemented in this package.
 | Element | Type | Notes |
 |---|---|---|
 | [bernstein](https://defelement.org/elements/bernstein.html) | `Bernstein` | line 1–3, triangle 1–3, tetrahedron 1–2 (tet ≥ 3 needs [#5](https://github.com/Ferrite-FEM/FerriteInterpolations.jl/issues/5)) |
-| [brezzi-douglas-fortin-marini](https://defelement.org/elements/brezzi-douglas-fortin-marini.html) | `BDFM` | triangle, degrees 1–2 |
+| [brezzi-douglas-fortin-marini](https://defelement.org/elements/brezzi-douglas-fortin-marini.html) | `BrezziDouglasFortinMarini` | triangle, degrees 1–2 |
 | [brezzi-douglas-marini](https://defelement.org/elements/brezzi-douglas-marini.html) | `BDM` | triangle, degree 2 (degree 1 is Ferrite's `BrezziDouglasMarini`, see [below](#implemented-in-ferrite)) |
 | [bubble](https://defelement.org/elements/bubble.html) | `Bubble` | line 2–3, triangle 3–4, tetrahedron 4 |
 | [conforming-crouzeix-raviart](https://defelement.org/elements/conforming-crouzeix-raviart.html) | `ConformingCrouzeixRaviart` | triangle, degrees 2–4 (degree 1 coincides with P1 Lagrange) |

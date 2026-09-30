@@ -3,8 +3,8 @@ using Ferrite
 using Test
 include("test_utils.jl")
 
-@testset "BDFM" begin
-    ips = (BDFM{RefTriangle, 1}(), BDFM{RefTriangle, 2}())
+@testset "BrezziDouglasFortinMarini" begin
+    ips = (BrezziDouglasFortinMarini{RefTriangle, 1}(), BrezziDouglasFortinMarini{RefTriangle, 2}())
 
     # (i) Interpolation-level tests
     for ip in ips
@@ -13,7 +13,7 @@ include("test_utils.jl")
     end
 
     # Live symfem cross-check ("BDFM"): signed permutations derived with
-    # sympy from the Ferrite DOF conventions (see src/bdfm.jl).
+    # sympy from the Ferrite DOF conventions (see src/brezzi_douglas_fortin_marini.jl).
     test_symfem_reference_vector(
         ips[1], "BDFM", 1,
         [(-1, 4), (-1, 5), (1, 3), (1, 2), (-1, 0), (-1, 1), (1, 6), (1, 7), (1, 8)],

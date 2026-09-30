@@ -33,8 +33,8 @@ include("bdm.jl")
 export BDM
 include("nedelec2.jl")
 export NedelecSecondKind
-include("bdfm.jl")
-export BDFM
+include("brezzi_douglas_fortin_marini.jl")
+export BrezziDouglasFortinMarini
 include("trimmed_serendipity_div.jl")
 export TrimmedSerendipityDiv
 include("trimmed_serendipity_curl.jl")
