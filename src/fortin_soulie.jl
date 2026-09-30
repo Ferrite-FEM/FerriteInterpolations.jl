@@ -10,9 +10,9 @@
 # continuous at the two Gauss-Legendre points of every interior edge (the patch
 # test then holds: the jump across an edge is orthogonal to P1 there). The six
 # Gauss points of a triangle lie on an ellipse, so they cannot be used as DOFs.
-# Instead, following Proposition 1 of the paper, W_h = X_h + Phi_h, where X_h is
-# the standard continuous P2 space and Phi_h contains one "neutral function" per
-# triangle,
+# On a simply connected domain, the construction in Proposition 1 of the paper
+# gives W_h = X_h + Phi_h, where X_h is the standard continuous P2 space and
+# Phi_h contains one "neutral function" per triangle,
 #
 #     phi_0(x) = 2 - 3 (lambda_1^2 + lambda_2^2 + lambda_3^2),
 #
@@ -21,6 +21,8 @@
 # vertex/edge association and hence shared between cells as usual) plus phi_0 as
 # a cell DOF (DOF 7). Adding phi_0 on a cell leaves the Gauss-point values
 # unchanged, which is why the enriched space is only Gauss-Legendre continuous.
+# On domains with holes, X_h + Phi_h is a proper subspace of W_h; this
+# implementation does not include the additional modes needed to span W_h.
 #
 # The representation is not unique: dim(X_h ∩ Phi_h) = 1, since the sum of the
 # neutral functions of all cells is itself continuous (its trace on every edge is
@@ -58,8 +60,10 @@ Fortin-Soulie nonconforming quadratic element on the triangle, as constructed in
 Fortin & Soulie (1983): continuous P2 (the six `Lagrange{RefTriangle, 2}` DOFs,
 shared between cells) enriched with one neutral function per cell,
 `2 - 3(λ₁² + λ₂² + λ₃²)`, which vanishes at the Gauss-Legendre points of the edges.
-The resulting global space is the piecewise quadratics that are continuous at the
-two Gauss-Legendre points of every interior edge.
+On a simply connected domain, the resulting global space consists of all
+piecewise quadratics that are continuous at the two Gauss-Legendre points of
+every interior edge. On domains with holes, this construction gives a proper
+subspace of that space.
 
 Impose Dirichlet conditions as usual (they act on the vertex and midpoint DOFs).
 For pure Neumann problems, fix one vertex and one midpoint value, since the

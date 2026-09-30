@@ -111,9 +111,59 @@ gauss_points(a, b) = (g = 1 / 2 - sqrt(3) / 6; (a + g * (b - a), a + (1 - g) * (
             d = celldofs(cell)
             @test sum(u[d[i]] * reference_shape_value(ip, ξ, i) for i in 1:7) ≈ 0 atol = 1.0e-12
         end
-        # The global space has dimension 2 * (number of edges), one less than ndofs
+        # On this simply connected mesh, the global space has dimension
+        # 2 * (number of edges), one less than ndofs
         nedges = length(Set(minmax(e...) for c in getcells(grid) for e in Ferrite.edges(c)))
         @test ndofs(dh) == 2 * nedges + 1
+    end
+
+    @testset "global space and domain topology" begin
+        for hole in (false, true)
+            grid = generate_grid(Triangle, (3, 3), Vec((0.0, 0.0)), Vec((3.0, 3.0)))
+            # Remove the central square to obtain a connected mesh with one hole.
+            cells = filter(getcells(grid)) do cell
+                x = sum(grid.nodes[i].x for i in cell.nodes) / 3
+                return !hole || !(1 < x[1] < 2 && 1 < x[2] < 2)
+            end
+            grid = Grid(cells, grid.nodes)
+            dh = DofHandler(grid)
+            add!(dh, :u, ip)
+            close!(dh)
+
+            # Map global coefficients to broken P2, represented by six nodal
+            # values on each cell. Its rank is the implemented space dimension.
+            B = zeros(6 * length(cells), ndofs(dh))
+            for k in eachindex(cells), j in 1:6, i in 1:7
+                ξ = Ferrite.reference_coordinates(lag)[j]
+                B[6 * (k - 1) + j, celldofs(dh, k)[i]] = reference_shape_value(ip, ξ, i)
+            end
+
+            # Independently impose Gauss continuity on broken P2. The kernel
+            # of C is the full Gauss-continuous space, including any hole modes.
+            edges = Dict{Tuple{Int, Int}, Vector{Int}}()
+            for (k, cell) in enumerate(cells), edge in Ferrite.edges(cell)
+                push!(get!(edges, minmax(edge...), Int[]), k)
+            end
+            ninterior = count(ks -> length(ks) == 2, values(edges))
+            C = zeros(2 * ninterior, 6 * length(cells))
+            row = 0
+            for ((a, b), ks) in edges
+                length(ks) == 2 || continue
+                for x in gauss_points(grid.nodes[a].x, grid.nodes[b].x)
+                    row += 1
+                    for (sign, k) in zip((1, -1), ks)
+                        X = [grid.nodes[i].x for i in cells[k].nodes]
+                        ξ = Vec{2}(Tuple(hcat(X[1] - X[3], X[2] - X[3]) \ (x - X[3])))
+                        for j in 1:6
+                            C[row, 6 * (k - 1) + j] = sign * reference_shape_value(lag, ξ, j)
+                        end
+                    end
+                end
+            end
+            @test norm(C * B) < 1.0e-12
+            @test rank(B) == ndofs(dh) - 1
+            @test size(C, 2) - rank(C) == rank(B) + Int(hole)
+        end
     end
 
     # (v) Dirichlet conditions act on the vertex and midpoint DOFs only
