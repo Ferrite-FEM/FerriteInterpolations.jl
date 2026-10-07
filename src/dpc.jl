@@ -52,6 +52,8 @@ Ferrite.mapping_type(::DPC) = L2PiolaMapping()
 # Ferrite requires the cell in reinit! for non-identity mappings because the
 # Piola mappings need it for `get_direction`; the L2 Piola mapping does not
 # use the cell, so keep the cell-less `reinit!(values, coords)` working.
+Ferrite.reinit_needs_cell(::L2PiolaMapping) = false
+# Ferrite releases without the mapping-level hook dispatch on the values type.
 Ferrite.reinit_needs_cell(::Ferrite.CellValues{<:Ferrite.FunctionValues{<:Any, <:DPC}}) = false
 Ferrite.reinit_needs_cell(::Ferrite.FacetValues{<:Ferrite.FunctionValues{<:Any, <:DPC}}) = false
 

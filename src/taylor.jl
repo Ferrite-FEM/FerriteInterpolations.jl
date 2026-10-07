@@ -156,5 +156,7 @@ end
 end
 
 # The mapping does not need the cell, keep cell-less reinit! working.
+Ferrite.reinit_needs_cell(::TaylorMapping) = false
+# Ferrite releases without the mapping-level hook dispatch on the values type.
 Ferrite.reinit_needs_cell(::Ferrite.CellValues{<:Ferrite.FunctionValues{<:Any, <:Taylor}}) = false
 Ferrite.reinit_needs_cell(::Ferrite.FacetValues{<:Ferrite.FunctionValues{<:Any, <:Taylor}}) = false
