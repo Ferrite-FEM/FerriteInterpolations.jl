@@ -17,42 +17,23 @@ let src = joinpath(@__DIR__, "CondaPkg.toml"), dst = joinpath(dirname(Base.activ
 end
 
 using FerriteInterpolations
-using ParallelTestRunner: find_tests
-using Test
+using ParallelTestRunner
 
 const TESTDIR = @__DIR__
 
 # `find_tests` auto-discovers every `.jl` file in `test/` (one test file per
-# element). Each file is self-contained (carries its own `using` and
-# `include("test_utils.jl")`) and runs in its own module below.
+# element). Each file runs in its own isolated worker process, so files must be
+# self-contained: they carry their own `using` and `include("test_utils.jl")`.
 testsuite = find_tests(TESTDIR)
 
 # Shared helpers, `include`d by the tests that need them:
 delete!(testsuite, "test_utils")
 
-# Optional positional args select a subset of test files (by prefix), e.g.
-# `Pkg.test(test_args = ["test_bernstein"])`.
-names = sort!(collect(keys(testsuite)))
-if !isempty(ARGS)
-    filter!(name -> any(arg -> startswith(name, arg), ARGS), names)
-end
+# Auto CPU thread count detection in ParallelTestRunner is bad
+push!(ARGS, "--jobs=$(Sys.CPU_THREADS)")
 
-# TODO: Run the test files in parallel worker processes again
-# (`ParallelTestRunner.runtests`). Currently blocked: PythonCall inside a Malt
-# worker leaks every Python temporary (the Julia-side `Py` wrappers are never
-# collected, even after `GC.gc(true)`; verified with a minimal repro without
-# Test/Ferrite, while the identical loop in a plain process is flat), so the
-# symfem cross-checks balloon by hundreds of MB per test file and workers get
-# OOM-killed on small machines. Needs upstream investigation (Malt.jl /
-# PythonCall.jl). Until then, run each file serially in this process.
-@testset "FerriteInterpolations" begin
-    for name in names
-        @testset "$name" begin
-            mod = Module(Symbol(name))
-            # `Module(...)` does not auto-define `include` like the `module`
-            # keyword does; the test files need it for test_utils.jl.
-            Core.eval(mod, :(include(x) = Base.include($mod, x)))
-            Base.include(mod, joinpath(TESTDIR, name * ".jl"))
-        end
-    end
-end
+runtests(
+    FerriteInterpolations, ARGS;
+    testsuite,
+    init_code = :(using FerriteInterpolations, Ferrite),
+)
