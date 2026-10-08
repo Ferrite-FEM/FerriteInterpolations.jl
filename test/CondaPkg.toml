@@ -1,5 +1,7 @@
 [deps]
-python = ">=3.10"
+# Python 3.14 leaks memory (and slows down) when called from a non-root Julia
+# task, which is where ParallelTestRunner runs every test file.
+python = ">=3.10,<3.14"
 
 [pip.deps]
 symfem = ""
