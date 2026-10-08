@@ -9,7 +9,12 @@
 # the reference edge) and cell interiors. The interior DOFs are not point
 # evaluations, so `Ferrite.reference_coordinates` is deliberately not defined:
 # the element cannot be used with Ferrite's nodal machinery (`Dirichlet` via
-# `BCValues`, `apply_analytical!`, `L2Projector`) for degree >= 2.
+# `BCValues`, `apply_analytical!`, `L2Projector`). This includes degree 1, which
+# coincides with `Lagrange` but does not define `reference_coordinates` either.
+# Strong Dirichlet conditions would need the Bernstein coefficients of the
+# boundary data (e.g. a facet L2 projection, which Ferrite's
+# `ProjectedDirichlet` only provides for H(div)/H(curl)); impose them weakly or
+# through `AffineConstraint`s instead.
 #
 # Basis: Bernstein polynomials B_α = (|α|! / α!) λ^α over the barycentric
 # coordinates λ of the cell, |α| = degree (Ainsworth, Andriamaro, Davydov,
@@ -31,7 +36,8 @@
 
 Bernstein(-Bezier) element of degree `order` on `shape`. H1-conforming.
 Vertex DOFs are point evaluations; the remaining DOFs are Bernstein
-coefficients (not point evaluations).
+coefficients (not point evaluations). Ferrite's `Dirichlet` is not supported
+(see the source file); Neumann conditions work as usual.
 """
 struct Bernstein{shape, order} <: ScalarInterpolation{shape, order} end
 

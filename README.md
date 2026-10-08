@@ -110,6 +110,31 @@ Degrees are given in *Ferrite's* numbering. For Raviart–Thomas and Nédélec
 | [vector-lagrange](https://defelement.org/elements/vector-lagrange.html) | `Lagrange^vdim` | via vectorization; follows `Lagrange` |
 | [vector-q](https://defelement.org/elements/vector-q.html) | `Lagrange^vdim` | via vectorization; follows `Lagrange` |
 
+## Boundary conditions
+
+The elements are defined on a single cell; how boundary conditions are applied
+in a mesh depends on what the DOFs on the boundary facets determine. Natural
+(Neumann) conditions are applied as usual (facet integrals with `FacetValues`)
+for every element. For Dirichlet conditions, the elements fall into these
+classes (each is tested by solving a model problem whose exact solution lies in
+the discrete space, see `test/test_utils.jl`):
+
+| Class | How to apply Dirichlet conditions | Where the boundary condition holds | Elements |
+|---|---|---|---|
+| Nodal, conforming | `Dirichlet` | on the whole boundary facet (for data in the trace space; otherwise the facet interpolant of the data) | `ConformingCrouzeixRaviart`, `Radau`, `Transition` (on order-1 edges the trace is the linear interpolant) |
+| Nonconforming | `Dirichlet` | at the points where the global space is continuous: the Gauss–Legendre points of the boundary edges | `CrouzeixFalk`, `FortinSoulie` (the conditions act on the vertex/midpoint DOFs; the neutral cell function is nonzero on the boundary except at the Gauss points) |
+| H(div) / H(curl) | `ProjectedDirichlet` (facet L2 projection of the normal / tangential component) | normal / tangential trace on the whole boundary facet (for data in the trace space) | `BDM`, `BrezziDouglasFortinMarini`, `TrimmedSerendipityDiv`, `TNTDiv`; `NedelecSecondKind`, `TrimmedSerendipityCurl`, `TNTCurl` |
+| Discontinuous / no boundary DOFs | weakly, e.g. Nitsche / symmetric interior penalty (`Dirichlet` constrains nothing or errors) | weakly | `DPC`, `GaussLegendre`, `Taylor`, `EnrichedGalerkin` (the per-cell constant is nonzero on the boundary, so constraining the Lagrange DOFs would not fix the trace) |
+| Vanishes on the boundary | nothing to apply (homogeneous by construction) | everywhere on the boundary | `Bubble` (used as an enrichment) |
+| Not supported | weakly, or through `AffineConstraint`s with the Bernstein coefficients of the data (`Dirichlet` needs point-evaluation DOFs, `ProjectedDirichlet` is H(div)/H(curl) only) | – | `Bernstein` |
+
+For Ferrite's own interpolations the same classes apply: `Lagrange`,
+`Serendipity` and `BubbleEnrichedLagrange` are nodal and conforming;
+`RaviartThomas`, `BrezziDouglasMarini` and `Nedelec` use `ProjectedDirichlet`;
+`CrouzeixRaviart` is nonconforming (`Dirichlet` acts at the facet midpoints);
+`DiscontinuousLagrange` accepts `Dirichlet` on the nodes of the boundary facets
+but is typically used with weak conditions.
+
 ## Structure
 
 - One source file per element in `src/`, defining an interpolation type in

@@ -31,7 +31,10 @@
 #  * With Dirichlet conditions (on any part of the boundary) the representation
 #    is unique, and the conditions are imposed on the X_h components, i.e. on the
 #    vertex and midpoint DOFs -- which is what Ferrite's facet Dirichlet does
-#    through the Lagrange entity DOFs.
+#    through the Lagrange entity DOFs. phi_0 is not a bubble (on an edge it is
+#    -1 at the vertices and 1/2 at the midpoint), so the discrete solution
+#    matches the data only at the Gauss points of the boundary edges, which is
+#    the nonconforming sense of the boundary condition.
 #  * For pure Neumann problems, two X_h values must be fixed instead of one (one
 #    at a vertex and one at a midpoint), since constants can be written in two
 #    ways.
@@ -65,7 +68,11 @@ piecewise quadratics that are continuous at the two Gauss-Legendre points of
 every interior edge. On domains with holes, this construction gives a proper
 subspace of that space.
 
-Impose Dirichlet conditions as usual (they act on the vertex and midpoint DOFs).
+Impose Dirichlet conditions as usual: they act on the vertex and midpoint DOFs.
+Since the neutral function does not vanish on the boundary (only at the Gauss
+points), the boundary condition holds in the nonconforming sense: the solution
+matches the (interpolated) data at the Gauss-Legendre points of the boundary
+edges, not at the vertices and midpoints.
 For pure Neumann problems, fix one vertex and one midpoint value, since the
 representation has one global degree of freedom too many.
 """

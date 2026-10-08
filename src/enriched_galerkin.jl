@@ -12,8 +12,14 @@
 # between neighboring cells exactly as for continuous Lagrange (including
 # distribution-time adjustment); the enrichment constant is appended as a
 # cell DOF (last index, never shared). The global space therefore contains
-# the discontinuous per-cell constants: L2 conformity. Dirichlet facet BCs
-# fall back to the Lagrange entity DOFs through Ferrite's defaults.
+# the discontinuous per-cell constants: L2 conformity.
+#
+# Boundary conditions: the enrichment constant is nonzero on the boundary, so
+# constraining the Lagrange DOFs would not fix the boundary trace (it would be
+# the data plus a free per-cell shift). Dirichlet conditions are therefore
+# imposed weakly, as in the interior penalty (SIPG/Nitsche) formulations the
+# element is designed for; Ferrite's `Dirichlet` is not supported (it needs
+# `reference_coordinates`, see below).
 #
 # `reference_coordinates` is not defined: the constant's DOF is an integral
 # moment, not a point evaluation, so the element is not nodal.
@@ -29,7 +35,8 @@
 Enriched Galerkin element: continuous Lagrange of degree `order` enriched
 with one discontinuous piecewise-constant function per cell (appended as the
 last, cell-local DOF). Available wherever `Ferrite.Lagrange{shape, order}`
-is; discontinuous (L2) as a global space.
+is; discontinuous (L2) as a global space. Impose Dirichlet conditions weakly
+(e.g. symmetric interior penalty / Nitsche), not with `Dirichlet`.
 """
 struct EnrichedGalerkin{shape, order} <: ScalarInterpolation{shape, order} end
 
