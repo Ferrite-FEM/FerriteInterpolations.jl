@@ -1,6 +1,8 @@
 [deps]
 # Python 3.14 leaks memory (and slows down) when called from a non-root Julia
-# task, which is where ParallelTestRunner runs every test file.
+# task, which is where ParallelTestRunner runs every test file. The upper bound
+# can be lifted once https://github.com/python/cpython/issues/157519 is fixed
+# in a 3.14 release.
 python = ">=3.10,<3.14"
 
 [pip.deps]
