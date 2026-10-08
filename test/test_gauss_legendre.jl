@@ -70,4 +70,11 @@ include("test_utils.jl")
         end
         test_weak_bcs(GaussLegendre{RefHexahedron, 1}(), bc_poly(1); n = 2)
     end
+
+    @testset "convergence" begin
+        for k in 1:3, shape in (RefLine, RefQuadrilateral)
+            test_convergence(GaussLegendre{shape, k}(), (k + 1, k); bc = :weak)
+        end
+        test_convergence(GaussLegendre{RefHexahedron, 1}(), (2, 1); bc = :weak)
+    end
 end

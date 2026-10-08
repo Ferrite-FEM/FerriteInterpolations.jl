@@ -116,4 +116,10 @@ include("test_utils.jl")
             test_weak_bcs(EnrichedGalerkin{shape, k}(), bc_poly(k))
         end
     end
+
+    @testset "convergence" begin
+        for k in 1:2, shape in (RefTriangle, RefQuadrilateral)
+            test_convergence(EnrichedGalerkin{shape, k}(), (k + 1, k); bc = :weak)
+        end
+    end
 end

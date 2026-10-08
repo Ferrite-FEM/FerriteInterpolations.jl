@@ -91,15 +91,9 @@ include("test_utils.jl")
         test_neumann_bc(ip, bc_poly(3))
     end
 
-    # (v) Poisson convergence: fourth order in the maximum norm (the
-    # equispaced edge points of DefElement only give second order).
-    @testset "Poisson convergence" begin
-        uex(x) = sin(2x[1]) * cos(x[2]) + x[1]^2
-        errs = map((4, 8)) do n
-            dh = bc_test_dofhandler(ip, bc_test_grid(Triangle; n))
-            u = solve_scalar_bc(dh, uex; dirichlet = true, qr_order = 8)
-            max_domain_error(dh, u, uex)
-        end
-        @test log2(errs[1] / errs[2]) > 3.7
-    end
+    # (v) Convergence: fourth order in L2, third in the broken H1 seminorm
+    # (with DefElement's equispaced edge points, which fail the patch test,
+    # the method converges two orders lower).
+    test_convergence(ip, (4, 3); bc = :dirichlet)
+    test_convergence(ip, (4, 3); bc = :neumann)
 end

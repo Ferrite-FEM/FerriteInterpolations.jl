@@ -124,4 +124,12 @@ include("test_utils.jl")
     @testset "boundary conditions: $ip" for ip in tet_ips
         test_neumann_bc(ip, bc_poly(Ferrite.getorder(ip)); n = 2, qr_order = 2 * Ferrite.getorder(ip))
     end
+
+    # (v) Convergence for a smooth solution (Neumann conditions, see above).
+    @testset "convergence: $ip" for ip in (line_ips..., tri_ips..., tet_ips...)
+        k = Ferrite.getorder(ip)
+        # P1 on tetrahedra is still pre-asymptotic on the default (2, 4) meshes.
+        ns = ip == Bernstein{RefTetrahedron, 1}() ? (4, 8) : conv_meshes(getrefshape(ip))
+        test_convergence(ip, (k + 1, k); bc = :neumann, ns)
+    end
 end

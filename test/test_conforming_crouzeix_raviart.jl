@@ -101,4 +101,9 @@ include("test_utils.jl")
         test_dirichlet_bc(ip, bc_poly(min(k, 3)); qr_order)
         test_neumann_bc(ip, bc_poly(min(k, 3)); qr_order)
     end
+
+    @testset "convergence: $ip" for (k, ip) in zip(2:4, ips)
+        test_convergence(ip, (k + 1, k); bc = :dirichlet)
+        test_convergence(ip, (k + 1, k); bc = :neumann)
+    end
 end

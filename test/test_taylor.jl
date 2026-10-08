@@ -79,4 +79,9 @@ include("test_utils.jl")
     @testset "boundary conditions: $ip" for ip in ips
         test_weak_bcs(ip, bc_poly(Ferrite.getorder(ip)))
     end
+
+    @testset "convergence: $ip" for ip in ips
+        k = Ferrite.getorder(ip)
+        test_convergence(ip, (k + 1, k); bc = :weak)
+    end
 end

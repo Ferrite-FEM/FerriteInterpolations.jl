@@ -183,62 +183,10 @@ gauss_points(a, b) = (g = 1 / 2 - sqrt(3) / 6; (a + g * (b - a), a + (1 - g) * (
         @test isempty(intersect(Set(ch.prescribed_dofs), celldofs7))
     end
 
-    # (vi) Poisson convergence: second order in the broken H1 seminorm and
-    # third order in L2 (paper: the element is second-order accurate)
-    @testset "Poisson convergence" begin
-        uex(x) = sin(π * x[1]) * sin(π * x[2])
-        ∇uex(x) = π * Vec((cos(π * x[1]) * sin(π * x[2]), sin(π * x[1]) * cos(π * x[2])))
-        fsrc(x) = 2π^2 * uex(x)
-        function solve(n)
-            grid = generate_grid(Triangle, (n, n), Vec((0.0, 0.0)), Vec((1.0, 1.0)))
-            dh = DofHandler(grid)
-            add!(dh, :u, ip)
-            close!(dh)
-            ch = ConstraintHandler(dh)
-            ∂Ω = union(getfacetset.((grid,), ["left", "right", "bottom", "top"])...)
-            add!(ch, Dirichlet(:u, ∂Ω, x -> 0.0))
-            close!(ch)
-            cv = CellValues(QuadratureRule{RefTriangle}(6), ip, Lagrange{RefTriangle, 1}())
-            K = allocate_matrix(dh)
-            f = zeros(ndofs(dh))
-            asm = start_assemble(K, f)
-            Ke, fe = zeros(7, 7), zeros(7)
-            for cell in CellIterator(dh)
-                reinit!(cv, cell)
-                fill!(Ke, 0)
-                fill!(fe, 0)
-                for qp in 1:getnquadpoints(cv)
-                    dΩ = getdetJdV(cv, qp)
-                    x = spatial_coordinate(cv, qp, getcoordinates(cell))
-                    for i in 1:7
-                        fe[i] += fsrc(x) * shape_value(cv, qp, i) * dΩ
-                        for j in 1:7
-                            Ke[i, j] += dot(shape_gradient(cv, qp, i), shape_gradient(cv, qp, j)) * dΩ
-                        end
-                    end
-                end
-                assemble!(asm, celldofs(cell), Ke, fe)
-            end
-            apply!(K, f, ch)
-            u = K \ f
-            apply!(u, ch)
-            eL2, eH1 = 0.0, 0.0
-            for cell in CellIterator(dh)
-                reinit!(cv, cell)
-                ue = u[celldofs(cell)]
-                for qp in 1:getnquadpoints(cv)
-                    dΩ = getdetJdV(cv, qp)
-                    x = spatial_coordinate(cv, qp, getcoordinates(cell))
-                    eL2 += (function_value(cv, qp, ue) - uex(x))^2 * dΩ
-                    eH1 += norm(function_gradient(cv, qp, ue) - ∇uex(x))^2 * dΩ
-                end
-            end
-            return sqrt(eL2), sqrt(eH1)
-        end
-        (l2a, h1a), (l2b, h1b) = solve(8), solve(16)
-        @test log2(h1a / h1b) > 1.9
-        @test log2(l2a / l2b) > 2.8
-    end
+    # (vi) Convergence: third order in L2, second in the broken H1 seminorm
+    # (paper: the element is second-order accurate).
+    test_convergence(ip, (3, 2); bc = :dirichlet)
+    test_convergence(ip, (3, 2); bc = :neumann)
 
     # (vii) Boundary conditions. Dirichlet data is imposed on the Lagrange DOFs,
     # but the neutral function does not vanish on the boundary, so the trace
