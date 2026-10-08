@@ -95,4 +95,10 @@ include("test_utils.jl")
             @test v1 ≈ v2 atol = 1.0e-12
         end
     end
+
+    @testset "boundary conditions: $ip" for (k, ip) in zip(2:4, ips)
+        qr_order = min(2k + 2, 8)
+        test_dirichlet_bc(ip, bc_poly(min(k, 3)); qr_order)
+        test_neumann_bc(ip, bc_poly(min(k, 3)); qr_order)
+    end
 end

@@ -25,4 +25,7 @@ include("test_utils.jl")
     grid = Grid([Quadrilateral((1, 2, 5, 4)), Quadrilateral((2, 3, 6, 5))], nodes)
     test_hcurl_two_cell(ip, grid, 2, 4, 2)
     test_curl_theorem(ip, getcells(grid, 1), getcoordinates(grid, 1))
+
+    # Boundary conditions: ProjectedDirichlet (essential) and natural.
+    test_vector_bcs(ip)
 end

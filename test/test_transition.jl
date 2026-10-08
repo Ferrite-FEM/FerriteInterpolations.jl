@@ -73,4 +73,29 @@ include("test_utils.jl")
             @test v1 ≈ v2 atol = 1.0e-13
         end
     end
+
+    # Boundary conditions on a mixed mesh: quadratic edges in the left half,
+    # linear edges in the right half, so every cell gets the Transition
+    # variant (or P1/P2 Lagrange) matching its edge orders. The trace on a
+    # boundary edge is quadratic or linear accordingly: Dirichlet data is
+    # matched along the whole edge resp. only at its vertices.
+    @testset "boundary conditions (mixed P1/Transition/P2 mesh)" begin
+        grid = bc_test_grid(Triangle)
+        edge_order(c, e) = (x = sum(grid.nodes[n].x for n in Ferrite.edges(getcells(grid, c))[e]) / 2; x[1] < 0 ? 2 : 1)
+        cell_orders = Dict(c => ntuple(e -> edge_order(c, e), 3) for c in 1:getncells(grid))
+        @test length(Set(values(cell_orders))) > 2
+        dh = DofHandler(grid)
+        # Ferrite warns about the mixed orders (intended here).
+        @test_logs (:warn, r"different interpolation order") match_mode = :any begin
+            for eo in unique(values(cell_orders))
+                sdh = SubDofHandler(dh, Set(c for (c, o) in cell_orders if o == eo))
+                add!(sdh, :u, eo == (1, 1, 1) ? Lagrange{RefTriangle, 1}() : Transition{RefTriangle, 2, eo}())
+            end
+        end
+        close!(dh)
+        trace_points(c, f) = cell_orders[c][f] == 2 ? range(0, 1, length = 9) : (0.0, 1.0)
+        test_dirichlet_bc(dh, bc_poly(1); qr_order = 6)
+        test_dirichlet_bc(dh, bc_poly(2); qr_order = 6, trace_points, exact = false)
+        test_neumann_bc(dh, bc_poly(1); qr_order = 6)
+    end
 end

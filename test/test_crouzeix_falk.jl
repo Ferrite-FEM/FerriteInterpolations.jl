@@ -13,13 +13,10 @@ include("test_utils.jl")
     test_type_genericity(ip)
     test_kronecker_delta(ip) # all DOFs are point evaluations
 
-    # Live symfem cross-check. The permutation (Ferrite DOF -> 0-based symfem
-    # DOF) was derived geometrically from the DOF evaluation points: symfem
-    # edge DOFs run at 1/4, 1/2, 3/4 from the first towards the second vertex
-    # of each symfem edge; Ferrite edge 1 coincides with symfem edge 2 (same
-    # direction), Ferrite edge 2 is symfem edge 1 reversed, and Ferrite edge 3
-    # is symfem edge 0 (same direction).
-    test_symfem_reference(ip, "Crouzeix-Falk", 3, [6, 7, 8, 5, 4, 3, 0, 1, 2, 9])
+    # The edge DOFs sit at the Gauss-Legendre points as in the paper, unlike
+    # symfem's equispaced points (see the source file), so the basis differs
+    # from symfem's; the spanned space (full P3) is the same.
+    test_symfem_span(ip, "Crouzeix-Falk", 3)
 
     # (ii) Integration tests: nodal interpolation of a full cubic is exact on
     # an affine cell.
@@ -54,7 +51,7 @@ include("test_utils.jl")
     # (iii) DofHandler: the edge DOFs are shared between neighboring cells.
     # Two triangles whose shared edge has opposite local orientation; the
     # interpolated function from both sides must agree at the three shared
-    # DOF points (only there -- the element is nonconforming, traces are not
+    # DOF (Gauss) points (only there -- the element is nonconforming, traces are not
     # matched along the whole edge). Exercises dof distribution and the
     # adjust_dofs_during_distribution edge reversal.
     @testset "two-cell shared edge DOFs" begin
@@ -74,7 +71,7 @@ include("test_utils.jl")
         dofs1 = celldofs(dh, 1)
         dofs2 = celldofs(dh, 2)
         eval_ref(ξ, dofs) = sum(u[dofs[i]] * Ferrite.reference_shape_value(ip, ξ, i) for i in 1:10)
-        for t in (1 / 4, 1 / 2, 3 / 4)
+        for t in (1 / 2 - sqrt(15) / 10, 1 / 2, 1 / 2 + sqrt(15) / 10)
             # Shared DOF point at physical (1-t)*n2 + t*n3: cell 1 edge (2,3)
             # param t -> ξ = (0, 1-t); cell 2 (local vertices n2, n4, n3) edge
             # (3,1) param 1-t -> ξ = (1-t, 0)
@@ -82,5 +79,27 @@ include("test_utils.jl")
             v2 = eval_ref(Vec((1 - t, 0.0)), dofs2)
             @test v1 ≈ v2 atol = 1.0e-13
         end
+    end
+
+    # (iv) Boundary conditions. Dirichlet data is matched at the three Gauss
+    # points of every boundary edge (nonconforming element). The jump across
+    # an edge is orthogonal to P2 (patch test), so cubic solutions are
+    # reproduced exactly with both Dirichlet and Neumann conditions.
+    gauss = (1 / 2 - sqrt(15) / 10, 1 / 2, 1 / 2 + sqrt(15) / 10)
+    @testset "boundary conditions" begin
+        test_dirichlet_bc(ip, bc_poly(3); trace_points = gauss)
+        test_neumann_bc(ip, bc_poly(3))
+    end
+
+    # (v) Poisson convergence: fourth order in the maximum norm (the
+    # equispaced edge points of DefElement only give second order).
+    @testset "Poisson convergence" begin
+        uex(x) = sin(2x[1]) * cos(x[2]) + x[1]^2
+        errs = map((4, 8)) do n
+            dh = bc_test_dofhandler(ip, bc_test_grid(Triangle; n))
+            u = solve_scalar_bc(dh, uex; dirichlet = true, qr_order = 8)
+            max_domain_error(dh, u, uex)
+        end
+        @test log2(errs[1] / errs[2]) > 3.7
     end
 end

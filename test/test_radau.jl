@@ -53,4 +53,9 @@ include("test_utils.jl")
         v2 = sum(u[dofs2[i]] * reference_shape_value(ip, Vec((-1.0,)), i) for i in 1:3)
         @test v1 ≈ v2 atol = 1.0e-13
     end
+
+    @testset "boundary conditions" begin
+        test_dirichlet_bc(ip, bc_poly(2))
+        test_neumann_bc(ip, bc_poly(2))
+    end
 end

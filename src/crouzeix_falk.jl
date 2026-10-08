@@ -1,39 +1,52 @@
-# Crouzeix-Falk element (https://defelement.org/elements/crouzeix-falk.html,
-# DefElement: elements/crouzeix-falk.def).
+# Crouzeix-Falk element, implemented as in the original paper: M. Crouzeix and
+# R. S. Falk, "Nonconforming finite elements for the Stokes problem", Math.
+# Comp. 52 (1989), DOI 10.2307/2008475 (see also
+# https://defelement.org/elements/crouzeix-falk.html).
 #
 # Cells/degrees implemented: RefTriangle degree 3 (the element only exists for
 # degree 3). Conformity: L2 (nonconforming), identity mapping. Space: full P3.
 #
-# The ten DOFs are point evaluations at three equispaced interior points per
-# edge (at 1/4, 1/2 and 3/4 along the edge, ordered from the first towards the
-# second vertex of the reference edge) plus the centroid (Crouzeix & Falk,
-# "Nonconforming finite elements for the Stokes problem", Math. Comp. 52
-# (1989), DOI 10.2307/2008475).
+# The paper (Theorem 2.1) defines the global space as the piecewise cubics that
+# are continuous at the three Gauss-Legendre points of every edge (and, for
+# homogeneous Dirichlet conditions, vanish at the Gauss points on the
+# boundary). The ten DOFs are therefore point evaluations at the three
+# Gauss-Legendre points of every edge, at s = 1/2 - sqrt(15)/10, 1/2 and
+# 1/2 + sqrt(15)/10 along the edge (ordered from the first towards the second
+# vertex of the reference edge), plus the centroid. The jump across an edge then
+# is a multiple of the cubic Legendre polynomial and hence orthogonal to P2 on
+# the edge, which gives the patch test and the O(h^3) energy-norm estimate of
+# the paper.
 #
-# Unlike Fortin-Soulie, the DOF layout is edge-symmetric (every edge carries
-# three DOFs, and the point set {1/4, 1/2, 3/4} maps onto itself under edge
-# reversal), so the coupled Crouzeix-Falk space IS realizable through
-# Ferrite's entity-based DOF identification: the edge DOFs are true edge DOFs
-# (shared between neighboring cells, like Ferrite's CrouzeixRaviart), with
-# `adjust_dofs_during_distribution` handling the order reversal on edges with
-# opposite local orientation. Interior traces still only agree at the three
+# Differences from DefElement: DefElement/symfem place the edge DOFs at the
+# equispaced points 1/4, 1/2 and 3/4. The jump across an edge is then only
+# orthogonal to the even polynomials, the patch test fails for quadratic
+# solutions and the method loses two orders of convergence. This file follows
+# the paper, so it is not cross-checked against symfem's "Crouzeix-Falk".
+#
+# The point set is symmetric under edge reversal, so the edge DOFs are true
+# edge DOFs (shared between neighboring cells, like Ferrite's CrouzeixRaviart),
+# with `adjust_dofs_during_distribution` handling the order reversal on edges
+# with opposite local orientation. Interior traces only agree at the three
 # shared points per edge -- that is the element's nonconformity, hence
-# L2Conformity.
+# L2Conformity. Dirichlet conditions through Ferrite's `Dirichlet` act on the
+# edge DOFs, i.e. at the Gauss points of the boundary edges, as in the paper.
 #
 # All DOFs are point evaluations, so `reference_coordinates` is defined.
 # DOF order (vertices carry no DOFs): edge 1: (1, 2, 3); edge 2: (4, 5, 6);
 # edge 3: (7, 8, 9); centroid: (10,).
 #
-# Basis: transcribed from symfem ("Crouzeix-Falk", degree 3); the reference
-# triangles agree pointwise (same coordinates, different vertex/edge
-# numbering), see test/test_crouzeix_falk.jl for the cross-check.
+# Basis: the dual basis of the DOFs above, derived with sympy (the DOFs are
+# unisolvent on P3: the Vandermonde determinant in the monomial basis is
+# 3 sqrt(15) / 8e8).
 
 """
     CrouzeixFalk{shape, order}()
 
-Crouzeix-Falk element on the triangle, degree 3. Nonconforming (L2), with
-three point-evaluation DOFs per edge (shared between neighboring cells) and
-one at the centroid.
+Crouzeix-Falk element on the triangle, degree 3, as in Crouzeix & Falk (1989):
+full P3 with point-evaluation DOFs at the three Gauss-Legendre points of every
+edge (shared between neighboring cells) and at the centroid. Nonconforming
+(L2): the global space is continuous at the Gauss points of the edges only.
+Dirichlet conditions are imposed at the Gauss points of the boundary edges.
 """
 struct CrouzeixFalk{shape, order} <: ScalarInterpolation{shape, order} end
 
@@ -42,27 +55,31 @@ Ferrite.adjust_dofs_during_distribution(::CrouzeixFalk) = true
 
 Ferrite.getnbasefunctions(::CrouzeixFalk{RefTriangle, 3}) = 10
 
-function Ferrite.reference_shape_value(ip::CrouzeixFalk{RefTriangle, 3}, ξ::Vec{2}, i::Int)
+function Ferrite.reference_shape_value(ip::CrouzeixFalk{RefTriangle, 3}, ξ::Vec{2, T}, i::Int) where {T}
     x, y = ξ[1], ξ[2]
-    i == 1 && return 64x^3 / 3 + 42x^2 * y - 32x^2 + 94x * y^2 / 3 - 134x * y / 3 + 44x / 3 + 64y^3 / 3 - 32y^2 + 44y / 3 - 2
-    i == 2 && return -32x^3 - 43x^2 * y + 48x^2 - 43x * y^2 + 59x * y - 22x - 32y^3 + 48y^2 - 22y + 3
-    i == 3 && return 64x^3 / 3 + 94x^2 * y / 3 - 32x^2 + 42x * y^2 - 134x * y / 3 + 44x / 3 + 64y^3 / 3 - 32y^2 + 44y / 3 - 2
-    i == 4 && return -64x^3 / 3 - 98x^2 * y / 3 + 32x^2 - 130x * y^2 / 3 + 46x * y - 44x / 3 - 32y^3 / 3 + 24y^2 - 40y / 3 + 2
-    i == 5 && return 32x^3 + 53x^2 * y - 48x^2 + 53x * y^2 - 69x * y + 22x - 16y^2 + 16y - 3
-    i == 6 && return -64x^3 / 3 - 22x^2 * y + 32x^2 - 34x * y^2 / 3 + 74x * y / 3 - 44x / 3 + 32y^3 / 3 - 8y^2 - 8y / 3 + 2
-    i == 7 && return 32x^3 / 3 - 34x^2 * y / 3 - 8x^2 - 22x * y^2 + 74x * y / 3 - 8x / 3 - 64y^3 / 3 + 32y^2 - 44y / 3 + 2
-    i == 8 && return 53x^2 * y - 16x^2 + 53x * y^2 - 69x * y + 16x + 32y^3 - 48y^2 + 22y - 3
-    i == 9 && return -32x^3 / 3 - 130x^2 * y / 3 + 24x^2 - 98x * y^2 / 3 + 46x * y - 40x / 3 - 64y^3 / 3 + 32y^2 - 44y / 3 + 2
-    i == 10 && return -27x^2 * y - 27x * y^2 + 27x * y
+    r = sqrt(T(15))
+    i == 1 && return 5 * (20x^3 + 2r * x^2 * y + 37x^2 * y - 30x^2 - 2r * x * y^2 + 37x * y^2 - 41x * y + 12x + 20y^3 - 30y^2 + 12y - 1) / 6
+    i == 2 && return -2 * (20x^3 + 19x^2 * y - 30x^2 + 19x * y^2 - 29x * y + 12x + 20y^3 - 30y^2 + 12y - 1) / 3
+    i == 3 && return 5 * (20x^3 - 2r * x^2 * y + 37x^2 * y - 30x^2 + 2r * x * y^2 + 37x * y^2 - 41x * y + 12x + 20y^3 - 30y^2 + 12y - 1) / 6
+    i == 4 && return -5 * (20x^3 + 2r * x^2 * y + 23x^2 * y - 30x^2 + 23x * y^2 + 6r * x * y^2 - 27x * y - 4r * x * y + 12x + 4r * y^3 - 6r * y^2 - 4y^2 + 4y + 2r * y - 1) / 6
+    i == 5 && return 2 * (20x^3 + 41x^2 * y - 30x^2 + 41x * y^2 - 51x * y + 12x - 10y^2 + 10y - 1) / 3
+    i == 6 && return -5 * (20x^3 - 2r * x^2 * y + 23x^2 * y - 30x^2 - 6r * x * y^2 + 23x * y^2 - 27x * y + 4r * x * y + 12x - 4r * y^3 - 4y^2 + 6r * y^2 - 2r * y + 4y - 1) / 6
+    i == 7 && return 5 * (4r * x^3 - 23x^2 * y + 6r * x^2 * y - 6r * x^2 + 4x^2 - 23x * y^2 + 2r * x * y^2 - 4r * x * y + 27x * y - 4x + 2r * x - 20y^3 + 30y^2 - 12y + 1) / 6
+    i == 8 && return 2 * (41x^2 * y - 10x^2 + 41x * y^2 - 51x * y + 10x + 20y^3 - 30y^2 + 12y - 1) / 3
+    i == 9 && return -5 * (4r * x^3 + 23x^2 * y + 6r * x^2 * y - 6r * x^2 - 4x^2 + 2r * x * y^2 + 23x * y^2 - 27x * y - 4r * x * y + 4x + 2r * x + 20y^3 - 30y^2 + 12y - 1) / 6
+    i == 10 && return -27x * y * (x + y - 1)
     return throw_out_of_range(ip, i)
 end
 
+# Gauss-Legendre points of the reference edge parametrization s in [0, 1].
+const _CF_GAUSS = (1 / 2 - sqrt(15) / 10, 1 / 2, 1 / 2 + sqrt(15) / 10)
+
 function Ferrite.reference_coordinates(::CrouzeixFalk{RefTriangle, 3})
     return [
-        Vec((3 / 4, 1 / 4)), Vec((1 / 2, 1 / 2)), Vec((1 / 4, 3 / 4)), # edge 1
-        Vec((0.0, 3 / 4)), Vec((0.0, 1 / 2)), Vec((0.0, 1 / 4)),       # edge 2
-        Vec((1 / 4, 0.0)), Vec((1 / 2, 0.0)), Vec((3 / 4, 0.0)),       # edge 3
-        Vec((1 / 3, 1 / 3)),                                           # centroid
+        (Vec((1 - s, s)) for s in _CF_GAUSS)..., # edge 1
+        (Vec((0.0, 1 - s)) for s in _CF_GAUSS)..., # edge 2
+        (Vec((s, 0.0)) for s in _CF_GAUSS)..., # edge 3
+        Vec((1 / 3, 1 / 3)), # centroid
     ]
 end
 

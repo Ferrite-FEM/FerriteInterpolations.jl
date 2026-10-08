@@ -113,4 +113,15 @@ include("test_utils.jl")
             @test v1 ≈ v2 atol = 1.0e-13
         end
     end
+
+    # (iv) Boundary conditions. Only Neumann: `Dirichlet` needs nodal
+    # `reference_coordinates` (not defined, the edge/interior DOFs are Bernstein
+    # coefficients) and `ProjectedDirichlet` only supports H(div)/H(curl), so
+    # strong Dirichlet conditions are currently not available for this element.
+    @testset "boundary conditions: $ip" for ip in (line_ips..., tri_ips...)
+        test_neumann_bc(ip, bc_poly(Ferrite.getorder(ip)))
+    end
+    @testset "boundary conditions: $ip" for ip in tet_ips
+        test_neumann_bc(ip, bc_poly(Ferrite.getorder(ip)); n = 2, qr_order = 2 * Ferrite.getorder(ip))
+    end
 end

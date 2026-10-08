@@ -118,4 +118,10 @@ include("test_utils.jl")
             @test function_value(cv, qp, ue) ≈ Vec((1.0, 1.0)) atol = 1.0e-13
         end
     end
+
+    # Boundary conditions: discontinuous, so weakly imposed (SIPG/Nitsche).
+    @testset "boundary conditions: $ip" for ip in ips
+        shape = Ferrite.getrefshape(ip)
+        test_weak_bcs(ip, bc_poly(Ferrite.getorder(ip)); n = shape == RefHexahedron ? 2 : 3)
+    end
 end

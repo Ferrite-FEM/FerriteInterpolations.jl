@@ -105,4 +105,7 @@ include("test_utils.jl")
             @test vol ≈ flux atol = 1.0e-11
         end
     end
+
+    # Boundary conditions: ProjectedDirichlet (essential) and natural.
+    test_vector_bcs(ip)
 end
