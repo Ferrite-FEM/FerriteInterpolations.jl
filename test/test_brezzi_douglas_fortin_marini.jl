@@ -70,4 +70,9 @@ include("test_utils.jl")
         test_hdiv_two_cell(ip, grid, 2, 3, k + 1)
         test_divergence_theorem(ip, getcells(grid, 2), getcoordinates(grid, 2))
     end
+
+    # Boundary conditions: ProjectedDirichlet (essential) and natural.
+    for ip in ips
+        test_vector_bcs(ip)
+    end
 end

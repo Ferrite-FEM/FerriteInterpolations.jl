@@ -62,4 +62,12 @@ include("test_utils.jl")
             @test isempty(intersect(celldofs(dh, 1), celldofs(dh, 2)))
         end
     end
+
+    # Boundary conditions: discontinuous, so weakly imposed (SIPG/Nitsche).
+    @testset "boundary conditions" begin
+        for k in 1:3, shape in (RefLine, RefQuadrilateral)
+            test_weak_bcs(GaussLegendre{shape, k}(), bc_poly(k))
+        end
+        test_weak_bcs(GaussLegendre{RefHexahedron, 1}(), bc_poly(1); n = 2)
+    end
 end

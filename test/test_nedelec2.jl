@@ -111,4 +111,9 @@ include("test_utils.jl")
             @test curlint ≈ circ atol = 1.0e-11
         end
     end
+
+    # Boundary conditions: ProjectedDirichlet (essential) and natural.
+    for ip in ips
+        test_vector_bcs(ip)
+    end
 end

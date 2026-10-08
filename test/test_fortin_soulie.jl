@@ -239,4 +239,15 @@ gauss_points(a, b) = (g = 1 / 2 - sqrt(3) / 6; (a + g * (b - a), a + (1 - g) * (
         @test log2(h1a / h1b) > 1.9
         @test log2(l2a / l2b) > 2.8
     end
+
+    # (vii) Boundary conditions. Dirichlet data is imposed on the Lagrange DOFs,
+    # but the neutral function does not vanish on the boundary, so the trace
+    # matches the data only at the two Gauss-Legendre points of every boundary
+    # edge (the nonconforming sense of the boundary condition), not at the
+    # vertices and midpoints.
+    @testset "boundary conditions" begin
+        gauss = ((3 - sqrt(3)) / 6, (3 + sqrt(3)) / 6)
+        test_dirichlet_bc(ip, bc_poly(2); trace_points = gauss)
+        test_neumann_bc(ip, bc_poly(2))
+    end
 end

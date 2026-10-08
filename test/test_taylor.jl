@@ -74,4 +74,9 @@ include("test_utils.jl")
             @test isempty(intersect(celldofs(dh, 1), celldofs(dh, 2)))
         end
     end
+
+    # Boundary conditions: discontinuous, so weakly imposed (SIPG/Nitsche).
+    @testset "boundary conditions: $ip" for ip in ips
+        test_weak_bcs(ip, bc_poly(Ferrite.getorder(ip)))
+    end
 end

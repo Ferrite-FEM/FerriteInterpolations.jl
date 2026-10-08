@@ -108,4 +108,12 @@ include("test_utils.jl")
             @test eval_ref(ξ2, dofs2, u) - eval_ref(ξ1, dofs1, u) ≈ 3.0 atol = 1.0e-12
         end
     end
+
+    # Boundary conditions: weakly imposed (SIPG/Nitsche), since the cell
+    # constant is not determined by strong conditions on the Lagrange DOFs.
+    @testset "boundary conditions" begin
+        for k in 1:2, shape in (RefTriangle, RefQuadrilateral)
+            test_weak_bcs(EnrichedGalerkin{shape, k}(), bc_poly(k))
+        end
+    end
 end

@@ -83,4 +83,13 @@ include("test_utils.jl")
             @test v1 ≈ v2 atol = 1.0e-13
         end
     end
+
+    # Boundary conditions. Dirichlet data is matched at the three DOF points of
+    # every boundary edge only (nonconforming element). Linear solutions only:
+    # with the equispaced edge points, the jump across an edge is not
+    # orthogonal to P1, so quadratic solutions are not reproduced (patch test).
+    @testset "boundary conditions" begin
+        test_dirichlet_bc(ip, bc_poly(1); trace_points = (1 / 4, 1 / 2, 3 / 4))
+        test_neumann_bc(ip, bc_poly(1))
+    end
 end

@@ -369,3 +369,395 @@ function test_type_genericity(ip)
         end
     end
 end
+
+# --- Boundary conditions -----------------------------------------------------
+#
+# The elements are defined on a single reference cell; these helpers check that
+# they also work in a mesh with boundary conditions: strong Dirichlet
+# conditions through `Dirichlet` (nodal) or `ProjectedDirichlet` (H(div)/
+# H(curl)), weak Dirichlet conditions (SIPG/Nitsche) for discontinuous elements,
+# and natural (Neumann) conditions. The manufactured solution lies in the
+# discrete space, so the FE solution must be exact and the boundary trace must
+# match the prescribed data.
+
+using LinearAlgebra: pinv
+
+const BC_FACETSETS = ("left", "right", "bottom", "top", "front", "back")
+
+# Unstructured-ish test mesh on [-1, 1]^dim with facetset "∂Ω". Cells stay affine
+# (so that the polynomial solutions below lie in the mapped spaces): interior
+# nodes of simplex/line meshes are perturbed, tensor-product meshes are
+# sheared into parallelograms.
+function bc_test_grid(::Type{CT}; n = 3) where {CT}
+    dim = Ferrite.getrefdim(CT)
+    grid = generate_grid(CT, ntuple(_ -> n, dim))
+    ∂Ω = union((getfacetset(grid, k) for k in BC_FACETSETS if haskey(grid.facetsets, k))...)
+    addfacetset!(grid, "∂Ω", ∂Ω)
+    if Ferrite.getrefshape(CT) <: Ferrite.RefHypercube && dim > 1
+        transform_coordinates!(grid, x -> Vec{dim}(i -> x[i] + (i == 1 ? 0.3 * x[2] : 0.1 * x[1])))
+    else
+        bnodes = Set(n for (c, f) in ∂Ω for n in Ferrite.facets(getcells(grid, c))[f])
+        for i in eachindex(grid.nodes)
+            i in bnodes && continue
+            grid.nodes[i] = Node(grid.nodes[i].x + Vec{dim}(d -> 0.15 / n * sin(3i + d)))
+        end
+    end
+    return grid
+end
+
+function bc_test_dofhandler(ip, grid)
+    return close!(add!(DofHandler(grid), :u, ip))
+end
+
+# Iterate over (sdh, ip) of field :u.
+bc_subdofhandlers(dh) = ((sdh, Ferrite.getfieldinterpolation(sdh, :u)) for sdh in dh.subdofhandlers)
+
+# Scalar model problem -Δu + u = f (broken gradient for nonconforming
+# elements) with either Dirichlet data `uex` on ∂Ω (`dirichlet = true`) or
+# Neumann data ∇uex ⋅ n on ∂Ω; f = -Δuex + uex unless given. Solved with a
+# pseudo-inverse since some elements (Fortin-Soulie) have a non-unique
+# representation.
+function solve_scalar_bc(dh, uex; dirichlet::Bool, qr_order::Int, f = x -> -tr(hessian(uex, x)) + uex(x))
+    grid = Ferrite.get_grid(dh)
+    ∂Ω = getfacetset(grid, "∂Ω")
+    ch = ConstraintHandler(dh)
+    dirichlet && add!(ch, Dirichlet(:u, ∂Ω, uex))
+    close!(ch)
+    K = allocate_matrix(dh)
+    F = zeros(ndofs(dh))
+    for (sdh, ip) in bc_subdofhandlers(dh)
+        shape = getrefshape(ip)
+        geo = geometric_interpolation(getcelltype(sdh))
+        cv = CellValues(QuadratureRule{shape}(qr_order), ip, geo)
+        fv = FacetValues(FacetQuadratureRule{shape}(qr_order), ip, geo)
+        n = getnbasefunctions(ip)
+        for cc in CellIterator(sdh)
+            reinit!(cv, cc)
+            dofs = celldofs(cc)
+            for qp in 1:getnquadpoints(cv)
+                dV = getdetJdV(cv, qp)
+                x = spatial_coordinate(cv, qp, getcoordinates(cc))
+                for i in 1:n
+                    F[dofs[i]] += shape_value(cv, qp, i) * f(x) * dV
+                    for j in 1:n
+                        K[dofs[i], dofs[j]] += (shape_gradient(cv, qp, i) ⋅ shape_gradient(cv, qp, j) + shape_value(cv, qp, i) * shape_value(cv, qp, j)) * dV
+                    end
+                end
+            end
+        end
+        dirichlet && continue
+        for fc in FacetIterator(sdh, filter(fi -> fi[1] in sdh.cellset, ∂Ω))
+            reinit!(fv, fc)
+            dofs = celldofs(fc)
+            for qp in 1:getnquadpoints(fv)
+                x = spatial_coordinate(fv, qp, getcoordinates(fc))
+                h = gradient(uex, x) ⋅ getnormal(fv, qp)
+                for i in 1:n
+                    F[dofs[i]] += h * shape_value(fv, qp, i) * getdetJdV(fv, qp)
+                end
+            end
+        end
+    end
+    update!(ch, 0.0)
+    apply!(K, F, ch)
+    u = pinv(Matrix(K)) * F
+    apply!(u, ch)
+    return u
+end
+
+# Points on every boundary facet, given by the facet parameters `s` in [0, 1]
+# along the reference edge (2D); the facet vertex itself in 1D.
+function bc_facet_point_rules(shape, s)
+    verts = Ferrite.reference_coordinates(Lagrange{shape, 1}())
+    return map(Ferrite.reference_facets(shape)) do fvs
+        pts = length(fvs) == 1 ? [verts[fvs[1]]] : [verts[fvs[1]] + si * (verts[fvs[2]] - verts[fvs[1]]) for si in s]
+        QuadratureRule{shape}(ones(length(pts)), pts)
+    end
+end
+
+# max |u_h(x) - g(x)| over the points `s` of every boundary facet. `s` may be a
+# function of the facet's cell id (for meshes mixing elements).
+function max_boundary_error(dh, u, g; s = range(0, 1, length = 9))
+    grid = Ferrite.get_grid(dh)
+    err = 0.0
+    for (sdh, ip) in bc_subdofhandlers(dh)
+        geo = geometric_interpolation(getcelltype(sdh))
+        for (c, f) in getfacetset(grid, "∂Ω")
+            c in sdh.cellset || continue
+            sc = s isa Function ? s(c, f) : s
+            isempty(sc) && continue
+            cv = CellValues(bc_facet_point_rules(getrefshape(ip), sc)[f], ip, geo)
+            coords = getcoordinates(grid, c)
+            reinit!(cv, getcells(grid, c), coords)
+            ue = u[celldofs(dh, c)]
+            for qp in 1:getnquadpoints(cv)
+                err = max(err, abs(function_value(cv, qp, ue) - g(spatial_coordinate(cv, qp, coords))))
+            end
+        end
+    end
+    return err
+end
+
+# max |u_h - uex| (scalar) or ‖u_h - uex‖ (vector) at interior quadrature points.
+function max_domain_error(dh, u, uex)
+    err = 0.0
+    for (sdh, ip) in bc_subdofhandlers(dh)
+        cv = CellValues(QuadratureRule{getrefshape(ip)}(4), ip, geometric_interpolation(getcelltype(sdh)))
+        for cc in CellIterator(sdh)
+            reinit!(cv, cc)
+            ue = u[celldofs(cc)]
+            for qp in 1:getnquadpoints(cv)
+                err = max(err, norm(function_value(cv, qp, ue) - uex(spatial_coordinate(cv, qp, getcoordinates(cc)))))
+            end
+        end
+    end
+    return err
+end
+
+"""
+    test_dirichlet_bc(ip_or_dh, uex; trace_points, exact = true, qr_order, n = 3)
+
+Solve -Δu + u = f with the strong Dirichlet condition u = uex on ∂Ω (inhomogeneous)
+and with u = 0 (homogeneous, f = 1). Check that the boundary trace of the solution
+matches the data at the facet points `trace_points` (default: the whole facet,
+see [`max_boundary_error`](@ref)) and, if `exact`, that u_h == uex in the domain
+(`uex` must then lie in the discrete space).
+"""
+function test_dirichlet_bc(dh::DofHandler, uex; trace_points = range(0, 1, length = 9), exact = true, qr_order::Int)
+    return @testset "Dirichlet BC" begin
+        u = solve_scalar_bc(dh, uex; dirichlet = true, qr_order)
+        @test max_boundary_error(dh, u, uex; s = trace_points) < 1.0e-12
+        exact && @test max_domain_error(dh, u, uex) < 1.0e-11
+        u0 = solve_scalar_bc(dh, x -> 0.0; dirichlet = true, qr_order, f = x -> 1.0)
+        @test norm(u0) > 0.01
+        @test max_boundary_error(dh, u0, x -> 0.0; s = trace_points) < 1.0e-12
+    end
+end
+function test_dirichlet_bc(ip::Interpolation, uex; n = 3, qr_order = 2 * Ferrite.getorder(ip) + 2, kwargs...)
+    grid = bc_test_grid(bc_celltype(getrefshape(ip)); n)
+    return test_dirichlet_bc(bc_test_dofhandler(ip, grid), uex; qr_order, kwargs...)
+end
+
+"""
+    test_neumann_bc(ip_or_dh, uex; qr_order, n = 3)
+
+Solve -Δu + u = f with the natural condition ∇u ⋅ n = ∇uex ⋅ n on all of ∂Ω and
+check u_h == uex (`uex` must lie in the discrete space and the element must
+pass the patch test for it).
+"""
+function test_neumann_bc(dh::DofHandler, uex; qr_order::Int)
+    return @testset "Neumann BC" begin
+        u = solve_scalar_bc(dh, uex; dirichlet = false, qr_order)
+        @test max_domain_error(dh, u, uex) < 1.0e-11
+    end
+end
+function test_neumann_bc(ip::Interpolation, uex; n = 3, qr_order = 2 * Ferrite.getorder(ip) + 2)
+    grid = bc_test_grid(bc_celltype(getrefshape(ip)); n)
+    return test_neumann_bc(bc_test_dofhandler(ip, grid), uex; qr_order)
+end
+
+bc_celltype(::Type{RefLine}) = Line
+bc_celltype(::Type{RefTriangle}) = Triangle
+bc_celltype(::Type{RefQuadrilateral}) = Quadrilateral
+bc_celltype(::Type{RefTetrahedron}) = Tetrahedron
+bc_celltype(::Type{RefHexahedron}) = Hexahedron
+
+# 2D scalar curl of a vector gradient.
+bc_curl(G) = G[2, 1] - G[1, 2]
+
+# Vector model problem (q, δq) + (D q, D δq) = (qex, δq) [+ natural BC], with
+# D = div (H(div)) or curl (H(curl)), for linear qex (so ∇(D qex) = 0). With
+# `essential`, the normal (H(div)) or tangential (H(curl)) trace of qex is
+# prescribed on ∂Ω via `ProjectedDirichlet`; otherwise the natural condition
+# D q = D qex enters through ∫ D qex (δq ⋅ n) resp. ∫ curl qex (δq ⋅ t).
+function solve_vector_bc(dh, qex; essential::Bool, qr_order::Int, bc = qex)
+    grid = Ferrite.get_grid(dh)
+    ∂Ω = getfacetset(grid, "∂Ω")
+    ip = only(ip for (_, ip) in bc_subdofhandlers(dh))
+    hdiv = Ferrite.conformity(ip) isa Ferrite.HdivConformity
+    D(G) = hdiv ? tr(G) : bc_curl(G)
+    trace(q, n) = hdiv ? q ⋅ n : q ⋅ Vec((-n[2], n[1]))
+    ch = ConstraintHandler(dh)
+    essential && add!(ch, ProjectedDirichlet(:u, ∂Ω, hdiv ? ((x, t, n) -> bc(x) ⋅ n) : ((x, t, n) -> bc(x) × n)))
+    close!(ch)
+    update!(ch, 0.0)
+    shape = getrefshape(ip)
+    geo = geometric_interpolation(getcelltype(grid))
+    cv = CellValues(QuadratureRule{shape}(qr_order), ip, geo)
+    fv = FacetValues(FacetQuadratureRule{shape}(qr_order), ip, geo)
+    n = getnbasefunctions(ip)
+    K = allocate_matrix(dh)
+    F = zeros(ndofs(dh))
+    Dq = D(gradient(qex, zero(Vec{2})))
+    for cc in CellIterator(dh)
+        reinit!(cv, cc)
+        dofs = celldofs(cc)
+        for qp in 1:getnquadpoints(cv)
+            dV = getdetJdV(cv, qp)
+            x = spatial_coordinate(cv, qp, getcoordinates(cc))
+            for i in 1:n
+                F[dofs[i]] += shape_value(cv, qp, i) ⋅ qex(x) * dV
+                for j in 1:n
+                    K[dofs[i], dofs[j]] += (shape_value(cv, qp, i) ⋅ shape_value(cv, qp, j) + D(shape_gradient(cv, qp, i)) * D(shape_gradient(cv, qp, j))) * dV
+                end
+            end
+        end
+    end
+    if !essential
+        for fc in FacetIterator(dh, ∂Ω)
+            reinit!(fv, fc)
+            dofs = celldofs(fc)
+            for qp in 1:getnquadpoints(fv), i in 1:n
+                F[dofs[i]] += Dq * trace(shape_value(fv, qp, i), getnormal(fv, qp)) * getdetJdV(fv, qp)
+            end
+        end
+    end
+    apply!(K, F, ch)
+    u = K \ F
+    apply!(u, ch)
+    return u
+end
+
+# max |trace(q_h - qex)| at facet quadrature points of ∂Ω (normal trace for
+# H(div), tangential trace for H(curl)).
+function max_trace_error(dh, u, qex; qr_order = 6)
+    grid = Ferrite.get_grid(dh)
+    ip = only(ip for (_, ip) in bc_subdofhandlers(dh))
+    hdiv = Ferrite.conformity(ip) isa Ferrite.HdivConformity
+    fv = FacetValues(FacetQuadratureRule{getrefshape(ip)}(qr_order), ip, geometric_interpolation(getcelltype(grid)))
+    err = 0.0
+    for fc in FacetIterator(dh, getfacetset(grid, "∂Ω"))
+        reinit!(fv, fc)
+        ue = u[celldofs(fc)]
+        for qp in 1:getnquadpoints(fv)
+            n = getnormal(fv, qp)
+            d = function_value(fv, qp, ue) - qex(spatial_coordinate(fv, qp, getcoordinates(fc)))
+            err = max(err, abs(hdiv ? d ⋅ n : d ⋅ Vec((-n[2], n[1]))))
+        end
+    end
+    return err
+end
+
+"""
+    test_vector_bcs(ip; qex, n = 3)
+
+H(div)/H(curl) boundary conditions for a 2D vector element: `ProjectedDirichlet`
+with the normal resp. tangential trace of `qex` (inhomogeneous) and of zero
+(homogeneous), checked pointwise along ∂Ω, and the natural condition on div resp.
+curl. `qex` must be linear and lie in the discrete space (on the affine test
+mesh), in which case the solution must be exact.
+"""
+function test_vector_bcs(ip; qex = x -> Vec((1 + 2x[1] - x[2], -2 + x[1] + 3x[2])), n = 3, qr_order = 2 * Ferrite.getorder(ip) + 2)
+    return @testset "BCs: $ip" begin
+        grid = bc_test_grid(bc_celltype(getrefshape(ip)); n)
+        dh = bc_test_dofhandler(ip, grid)
+        @testset "ProjectedDirichlet" begin
+            u = solve_vector_bc(dh, qex; essential = true, qr_order)
+            @test max_trace_error(dh, u, qex) < 1.0e-12
+            @test max_domain_error(dh, u, qex) < 1.0e-11
+            zq(x) = zero(Vec{2, Float64})
+            u0 = solve_vector_bc(dh, qex; essential = true, qr_order, bc = zq)
+            @test norm(u0) > 0.01
+            @test max_trace_error(dh, u0, zq) < 1.0e-12
+        end
+        @testset "natural BC" begin
+            u = solve_vector_bc(dh, qex; essential = false, qr_order)
+            @test max_domain_error(dh, u, qex) < 1.0e-11
+        end
+    end
+end
+
+"""
+    test_weak_bcs(ip, uex; n = 3, qr_order)
+
+Symmetric interior penalty (SIPG) discretization of -Δu + u = f for
+discontinuous elements, which have no boundary DOFs for strong Dirichlet
+conditions: Dirichlet data uex weakly (Nitsche) on the left half of ∂Ω, Neumann
+data ∇uex ⋅ n on the rest. `uex` must lie in the discrete space; the solution
+must then be exact.
+"""
+function test_weak_bcs(ip, uex; n = 3, qr_order = 2 * Ferrite.getorder(ip) + 2)
+    return @testset "weak (SIPG) BCs: $ip" begin
+        grid = bc_test_grid(bc_celltype(getrefshape(ip)); n)
+        dh = bc_test_dofhandler(ip, grid)
+        ∂Ω = getfacetset(grid, "∂Ω")
+        center(c) = sum(getcoordinates(grid, c)) / length(getcoordinates(grid, c))
+        ΓD = Set(fi for fi in ∂Ω if center(fi[1])[1] < 0)
+        @test !isempty(ΓD) && length(ΓD) < length(∂Ω)
+        shape = getrefshape(ip)
+        geo = geometric_interpolation(getcelltype(grid))
+        cv = CellValues(QuadratureRule{shape}(qr_order), ip, geo)
+        fv = FacetValues(FacetQuadratureRule{shape}(qr_order), ip, geo)
+        iv = InterfaceValues(FacetQuadratureRule{shape}(qr_order), ip, geo)
+        topo = ExclusiveTopology(grid)
+        f(x) = -tr(hessian(uex, x)) + uex(x)
+        γ = 20 * (Ferrite.getorder(ip) + 1)^2
+        hK(coords) = maximum(norm(a - b) for a in coords, b in coords)
+        nb = getnbasefunctions(ip)
+        K = zeros(ndofs(dh), ndofs(dh))
+        F = zeros(ndofs(dh))
+        for cc in CellIterator(dh)
+            reinit!(cv, cc)
+            dofs = celldofs(cc)
+            for qp in 1:getnquadpoints(cv)
+                dV = getdetJdV(cv, qp)
+                x = spatial_coordinate(cv, qp, getcoordinates(cc))
+                for i in 1:nb
+                    F[dofs[i]] += shape_value(cv, qp, i) * f(x) * dV
+                    for j in 1:nb
+                        K[dofs[i], dofs[j]] += (shape_gradient(cv, qp, i) ⋅ shape_gradient(cv, qp, j) + shape_value(cv, qp, i) * shape_value(cv, qp, j)) * dV
+                    end
+                end
+            end
+        end
+        for ic in InterfaceIterator(dh, topo)
+            reinit!(iv, ic)
+            dofs = interfacedofs(ic)
+            μ = γ / hK(getcoordinates(ic.a))
+            for qp in 1:getnquadpoints(iv)
+                # Ferrite's jump is (there - here), the normal points out of "here".
+                n = getnormal(iv, qp)
+                dΓ = getdetJdV(iv, qp)
+                for i in eachindex(dofs), j in eachindex(dofs)
+                    ji, jj = shape_value_jump(iv, qp, i), shape_value_jump(iv, qp, j)
+                    ai, aj = shape_gradient_average(iv, qp, i) ⋅ n, shape_gradient_average(iv, qp, j) ⋅ n
+                    K[dofs[i], dofs[j]] += (ai * jj + ji * aj + μ * ji * jj) * dΓ
+                end
+            end
+        end
+        for fc in FacetIterator(dh, ∂Ω)
+            reinit!(fv, fc)
+            dofs = celldofs(fc)
+            isD = FacetIndex(cellid(fc), Ferrite.getcurrentfacet(fv)) in ΓD
+            μ = γ / hK(getcoordinates(fc))
+            for qp in 1:getnquadpoints(fv)
+                x = spatial_coordinate(fv, qp, getcoordinates(fc))
+                n = getnormal(fv, qp)
+                dΓ = getdetJdV(fv, qp)
+                for i in 1:nb
+                    Ni, dNi = shape_value(fv, qp, i), shape_gradient(fv, qp, i) ⋅ n
+                    if isD
+                        F[dofs[i]] += (μ * Ni - dNi) * uex(x) * dΓ
+                        for j in 1:nb
+                            Nj, dNj = shape_value(fv, qp, j), shape_gradient(fv, qp, j) ⋅ n
+                            K[dofs[i], dofs[j]] += (μ * Ni * Nj - dNi * Nj - Ni * dNj) * dΓ
+                        end
+                    else
+                        F[dofs[i]] += (gradient(uex, x) ⋅ n) * Ni * dΓ
+                    end
+                end
+            end
+        end
+        u = pinv(K) * F
+        @test max_domain_error(dh, u, uex) < 1.0e-10
+        @test max_boundary_error(dh, u, uex; s = (c, f) -> FacetIndex(c, f) in ΓD ? range(0, 1, length = 9) : Float64[]) < 1.0e-10
+    end
+end
+
+# Degree-k polynomial test solutions for the BC tests (in any dimension).
+function bc_poly(k::Int)
+    p1(x) = 1 + 2x[1] - x[end] / 2
+    p2(x) = p1(x) + x[1] * x[end] - x[end]^2 / 3
+    p3(x) = p2(x) + x[1]^3 / 3 - x[1] * x[end]^2
+    return (p1, p2, p3)[k]
+end
