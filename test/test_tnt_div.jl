@@ -28,4 +28,8 @@ include("test_utils.jl")
 
     # Boundary conditions: ProjectedDirichlet (essential) and natural.
     test_vector_bcs(ip)
+
+    for bc in (:essential, :natural)
+        test_convergence(ip, (2, 2); bc)
+    end
 end

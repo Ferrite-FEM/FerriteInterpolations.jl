@@ -108,4 +108,8 @@ include("test_utils.jl")
 
     # Boundary conditions: ProjectedDirichlet (essential) and natural.
     test_vector_bcs(ip)
+
+    # Convergence: q in L2 (full P2) and div q (P1).
+    test_convergence(ip, (3, 2); bc = :essential)
+    test_convergence(ip, (3, 2); bc = :natural)
 end

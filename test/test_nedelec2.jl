@@ -116,4 +116,9 @@ include("test_utils.jl")
     for ip in ips
         test_vector_bcs(ip)
     end
+
+    # Convergence: q in L2 (full P_k) and curl q (P_(k-1)).
+    for (k, ip) in zip(1:2, ips), bc in (:essential, :natural)
+        test_convergence(ip, (k + 1, k); bc)
+    end
 end

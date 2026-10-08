@@ -75,4 +75,10 @@ include("test_utils.jl")
     for ip in ips
         test_vector_bcs(ip)
     end
+
+    # Convergence: the space contains P_k (L2 rate k + 1) and its divergence
+    # is all of P_k (rate k + 1).
+    for (k, ip) in zip(1:2, ips), bc in (:essential, :natural)
+        test_convergence(ip, (k + 1, k + 1); bc)
+    end
 end

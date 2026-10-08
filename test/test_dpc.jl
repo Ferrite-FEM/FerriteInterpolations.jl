@@ -124,4 +124,20 @@ include("test_utils.jl")
         shape = Ferrite.getrefshape(ip)
         test_weak_bcs(ip, bc_poly(Ferrite.getorder(ip)); n = shape == RefHexahedron ? 2 : 3)
     end
+
+    # Convergence. With the default SIPG penalty, DPC1 (3 DOFs per quad/4 per
+    # hex) is strongly penalized towards continuous P1, which locks on
+    # quadrilateral meshes: the rate approaches 2 only slowly (1.23, 1.40,
+    # 1.65 for n = 4 -> 32 on quads, while the L2 projection converges at
+    # rate 2). Use a smaller penalty and finer meshes for it.
+    @testset "convergence: $ip" for ip in ips
+        k = Ferrite.getorder(ip)
+        shape = Ferrite.getrefshape(ip)
+        if k == 1
+            ns = shape == RefHexahedron ? (6, 12) : (16, 32)
+            test_convergence(ip, (2, 1); bc = :weak, ns, penalty = 2, atol = 0.25)
+        else
+            test_convergence(ip, (k + 1, k); bc = :weak, ns = shape == RefHexahedron ? (3, 6) : (4, 8))
+        end
+    end
 end

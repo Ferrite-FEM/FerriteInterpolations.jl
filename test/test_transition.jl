@@ -79,23 +79,31 @@ include("test_utils.jl")
     # variant (or P1/P2 Lagrange) matching its edge orders. The trace on a
     # boundary edge is quadratic or linear accordingly: Dirichlet data is
     # matched along the whole edge resp. only at its vertices.
-    @testset "boundary conditions (mixed P1/Transition/P2 mesh)" begin
-        grid = bc_test_grid(Triangle)
-        edge_order(c, e) = (x = sum(grid.nodes[n].x for n in Ferrite.edges(getcells(grid, c))[e]) / 2; x[1] < 0 ? 2 : 1)
+    function mixed_dofhandler(n)
+        grid = bc_test_grid(Triangle; n)
+        edge_order(c, e) = (x = sum(grid.nodes[i].x for i in Ferrite.edges(getcells(grid, c))[e]) / 2; x[1] < 0 ? 2 : 1)
         cell_orders = Dict(c => ntuple(e -> edge_order(c, e), 3) for c in 1:getncells(grid))
-        @test length(Set(values(cell_orders))) > 2
         dh = DofHandler(grid)
-        # Ferrite warns about the mixed orders (intended here).
-        @test_logs (:warn, r"different interpolation order") match_mode = :any begin
-            for eo in unique(values(cell_orders))
-                sdh = SubDofHandler(dh, Set(c for (c, o) in cell_orders if o == eo))
-                add!(sdh, :u, eo == (1, 1, 1) ? Lagrange{RefTriangle, 1}() : Transition{RefTriangle, 2, eo}())
-            end
+        for eo in unique(values(cell_orders))
+            sdh = SubDofHandler(dh, Set(c for (c, o) in cell_orders if o == eo))
+            add!(sdh, :u, eo == (1, 1, 1) ? Lagrange{RefTriangle, 1}() : Transition{RefTriangle, 2, eo}())
         end
-        close!(dh)
+        return close!(dh), cell_orders
+    end
+    @testset "boundary conditions (mixed P1/Transition/P2 mesh)" begin
+        # Ferrite warns about the mixed orders (intended here).
+        dh, cell_orders = @test_logs (:warn, r"different interpolation order") match_mode = :any mixed_dofhandler(3)
+        @test length(Set(values(cell_orders))) > 2
         trace_points(c, f) = cell_orders[c][f] == 2 ? range(0, 1, length = 9) : (0.0, 1.0)
         test_dirichlet_bc(dh, bc_poly(1); qr_order = 6)
         test_dirichlet_bc(dh, bc_poly(2); qr_order = 6, trace_points, exact = false)
         test_neumann_bc(dh, bc_poly(1); qr_order = 6)
+    end
+
+    # Convergence on the mixed mesh: limited by the P1 half.
+    @testset "convergence (mixed P1/Transition/P2 mesh)" begin
+        make_dh(n) = first(@test_logs (:warn, r"different interpolation order") match_mode = :any mixed_dofhandler(n))
+        test_convergence(make_dh, (2, 1); bc = :dirichlet, ns = (4, 8), qr_order = 6)
+        test_convergence(make_dh, (2, 1); bc = :neumann, ns = (4, 8), qr_order = 6)
     end
 end

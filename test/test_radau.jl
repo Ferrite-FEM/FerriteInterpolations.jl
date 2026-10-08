@@ -58,4 +58,9 @@ include("test_utils.jl")
         test_dirichlet_bc(ip, bc_poly(2))
         test_neumann_bc(ip, bc_poly(2))
     end
+
+    @testset "convergence" begin
+        test_convergence(ip, (3, 2); bc = :dirichlet)
+        test_convergence(ip, (3, 2); bc = :neumann)
+    end
 end
