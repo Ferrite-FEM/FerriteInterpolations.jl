@@ -8,7 +8,8 @@ the element tabulations in [DefElement](https://defelement.org) (through its
 reference implementation [symfem](https://github.com/mscroggs/symfem)) into
 Ferrite's conventions: reference cells, entity numbering, DOF ordering, and
 orientation handling. Every implemented basis is cross-checked against symfem
-in the test suite.
+in the test suite, except where an element deliberately follows its original
+paper instead of DefElement (Fortin–Soulie, Crouzeix–Falk; see the table).
 
 This package implements elements that Ferrite does not (yet) provide itself.
 Elements that already exist in Ferrite are deliberately **not** re-implemented
@@ -31,7 +32,7 @@ Interpolations implemented in this package.
 | [brezzi-douglas-marini](https://defelement.org/elements/brezzi-douglas-marini.html) | `BDM` | triangle, degree 2 (degree 1 is Ferrite's `BrezziDouglasMarini`, see [below](#implemented-in-ferrite)) |
 | [bubble](https://defelement.org/elements/bubble.html) | `Bubble` | line 2–3, triangle 3–4, tetrahedron 4 |
 | [conforming-crouzeix-raviart](https://defelement.org/elements/conforming-crouzeix-raviart.html) | `ConformingCrouzeixRaviart` | triangle, degrees 2–4 (degree 1 coincides with P1 Lagrange) |
-| [crouzeix-falk](https://defelement.org/elements/crouzeix-falk.html) | `CrouzeixFalk` | triangle (degree 3, as defined) |
+| [crouzeix-falk](https://defelement.org/elements/crouzeix-falk.html) | `CrouzeixFalk` | triangle (degree 3), as in the original paper: edge DOFs at the three Gauss–Legendre points of each edge. Differs from DefElement, which uses the equispaced points 1/4, 1/2, 3/4; with those the patch test fails and the method loses two orders of convergence. Only the span (full P3) is cross-checked against symfem |
 | [dPc](https://defelement.org/elements/dpc.html) | `DPC` | quadrilateral 1–3, hexahedron 1–2, with the L2 Piola mapping; on the interval it coincides with `DiscontinuousLagrange` |
 | [enriched-galerkin](https://defelement.org/elements/enriched-galerkin.html) | `EnrichedGalerkin` | every cell/degree Ferrite's `Lagrange` supports |
 | [fortin-soulie](https://defelement.org/elements/fortin-soulie.html) | `FortinSoulie` | triangle (degree 2), as in the original paper: continuous P2 plus one neutral function per cell, continuous at the Gauss–Legendre points of each edge (spans the full Gauss-continuous space on simply connected domains; a proper subspace on domains with holes). Differs from DefElement's definition, which uses an asymmetric local element (and, in symfem up to 2025.12, the edge points 1/3 and 2/3, see [mscroggs/symfem#344](https://github.com/mscroggs/symfem/pull/344)); see the file header and [#33](https://github.com/Ferrite-FEM/FerriteInterpolations.jl/issues/33) |
