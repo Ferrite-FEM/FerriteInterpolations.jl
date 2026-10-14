@@ -44,8 +44,15 @@ include("test_utils.jl")
     for ip in ips
         getrefshape(ip) in (RefPrism, RefPyramid) && continue
         shape, k = getrefshape(ip), Ferrite.getorder(ip)
-        perm = vcat(symfem_point_perm(Lagrange{shape, k}(), "Lagrange", k), getnbasefunctions(ip) - 1)
-        test_symfem_reference(ip, "enriched Galerkin", k, perm)
+        if isdefined(Ferrite, :_gll_points) && k >= 3
+            # Ferrite >= 1.8 uses GLL nodes for Lagrange of order >= 3 (see
+            # test_lagrange.jl), so the basis differs from symfem's equispaced one:
+            # check the span instead (the Lagrange part is checked in test_lagrange.jl).
+            test_symfem_span(ip, "enriched Galerkin", k)
+        else
+            perm = vcat(symfem_point_perm(Lagrange{shape, k}(), "Lagrange", k), getnbasefunctions(ip) - 1)
+            test_symfem_reference(ip, "enriched Galerkin", k, perm)
+        end
     end
 
     # (ii) Integration test: an affine function plus a cell constant is

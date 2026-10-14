@@ -12,6 +12,7 @@ include(joinpath(pkgdir(Ferrite), "test", "interpolation_test_utils.jl"))
 
 const symfem = pyimport("symfem")
 const sympy = pyimport("sympy")
+const mpmath = pyimport("mpmath")
 
 # Sample a (not necessarily uniformly distributed) random point strictly inside
 # the reference cell.
@@ -192,6 +193,36 @@ function symfem_point_perm(ip, family::String, degree::Int; kwargs...)
 end
 
 """
+    symfem_basis_evaluator(el)
+
+Returns a function `(shape, ξ, j) -> Nⱼ(ξ)` evaluating the `j`th (1-based) basis function
+of the symfem element `el` at the Ferrite reference point `ξ`. The basis functions are
+compiled with `sympy.lambdify` and evaluated in 50-digit mpmath arithmetic: exact rational
+substitution (see [`symfem_point`](@ref)) is far too slow when many points are needed for
+higher order elements in 3D, while Float64 evaluation of the expanded polynomials loses
+digits to cancellation.
+"""
+function symfem_basis_evaluator(el)
+    mpmath.mp.dps = 50
+    x = symfem.symbols.x
+    # sympy.lambdify inspects the calling Python frame, which does not exist when called
+    # from Julia, so call it from a Python function.
+    lambdify = pyexec(
+        @NamedTuple{lambdify_mpmath::Py}, """
+        import sympy
+        def lambdify_mpmath(x, expr):
+            return sympy.lambdify(x, expr, "mpmath")
+        """, pydict()
+    ).lambdify_mpmath
+    fns = [lambdify(x, f.as_sympy()) for f in el.get_basis_functions()]
+    return function (shape, ξ::Vec, j::Int)
+        c = symfem_coords(shape, ξ)
+        args = ntuple(i -> mpmath.mpf(i <= length(c) ? string(c[i]) : "0"), 3)
+        return pyconvert(Float64, pybuiltins.float(fns[j](args...)))
+    end
+end
+
+"""
     test_symfem_span(ip, family, degree; kwargs...)
 
 Check that the (scalar) basis of `ip` spans the same space as the symfem
@@ -205,14 +236,10 @@ function test_symfem_span(ip, family::String, degree::Int; kwargs...)
         N = getnbasefunctions(ip)
         el = symfem.create_element(symfem_cellname(shape), family, degree; kwargs...)
         @test pyconvert(Int, el.space_dim) == N
-        basis = el.get_basis_functions()
-        x = symfem.symbols.x
+        basis = symfem_basis_evaluator(el)
         points = [sample_reference_point(shape) for _ in 1:(3 * N + 10)]
         A = [reference_shape_value(ip, ξ, i) for ξ in points, i in 1:N]
-        B = [
-            pyconvert(Float64, pybuiltins.float(basis[j].subs(x, symfem_point(shape, ξ)).as_sympy()))
-                for ξ in points, j in 0:(N - 1)
-        ]
+        B = [basis(shape, ξ, j) for ξ in points, j in 1:N]
         @test norm(A - B * (B \ A)) < 1.0e-10 * norm(A)
         @test norm(B - A * (A \ B)) < 1.0e-10 * norm(B)
     end
