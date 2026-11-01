@@ -21,7 +21,7 @@ jobs:
         with:
           version: '1.12'
       - uses: julia-actions/cache@a7bed9df697e5d7309d68afe7542a87621a8b6c8 # v3.3.0
-      - uses: fredrikekre/runic-action@26bdc21c15f81fbd4c7605a5f94fb5a0060820a6 # v1.4.0
+      - uses: fredrikekre/runic-action@b4dbd650db5cc684baae27fea45d22daf41693c2 # v1.5.0
         with:
           version: '1.7'
           docstrings: true
